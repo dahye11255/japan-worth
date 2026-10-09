@@ -1,26 +1,25 @@
 import React, { useState } from 'react';
 import { discountPolicies, calculateFinalPrice } from '../utils/discountCalculator';
 
-export default function DiscountCalculator() {
-  const [basePrice, setBasePrice] = useState<number>(10000); // 기본 테스트 금액 10,000엔
+// 💡 팀원이 장바구니에서 넘겨줘야 할 데이터(Props) 정의
+interface DiscountCalculatorProps {
+  basePrice: number; // 장바구니 총 금액
+}
+
+export default function DiscountCalculator({ basePrice }: DiscountCalculatorProps) {
+  // 금액 입력창(input)을 없애고, props로 받은 basePrice를 바로 사용해!
   const [couponRate, setCouponRate] = useState<number>(0);
   const [isTaxFree, setIsTaxFree] = useState<boolean>(false);
 
-  // 네가 만든 함수로 최종 가격 계산!
   const finalPrice = calculateFinalPrice(basePrice, couponRate, isTaxFree);
 
   return (
     <div style={{ border: '1px solid #ddd', padding: '16px', borderRadius: '8px', margin: '16px 0', backgroundColor: '#f9f9f9' }}>
-      <h3 style={{ marginTop: 0, marginBottom: '16px' }}>💴 면세 및 쿠폰 계산기</h3>
+      <h3 style={{ marginTop: 0, marginBottom: '16px' }}>💴 장바구니 면세/쿠폰 계산</h3>
 
-      <div style={{ marginBottom: '12px' }}>
-        <label style={{ display: 'inline-block', width: '120px' }}>상품 금액 (엔): </label>
-        <input
-          type="number"
-          value={basePrice}
-          onChange={(e) => setBasePrice(Number(e.target.value))}
-          style={{ padding: '6px', width: '120px', borderRadius: '4px', border: '1px solid #ccc' }}
-        />
+      <div style={{ marginBottom: '12px', fontSize: '16px' }}>
+        <span>현재 장바구니 금액: </span>
+        <strong>{basePrice.toLocaleString()} 엔</strong>
       </div>
 
       <div style={{ marginBottom: '12px' }}>
@@ -46,7 +45,7 @@ export default function DiscountCalculator() {
             onChange={(e) => setIsTaxFree(e.target.checked)}
             style={{ width: '16px', height: '16px' }}
           />
-          면세 적용 (Tax-Free)
+          면세 적용 (Tax-Free 10% 제외)
         </label>
       </div>
 
