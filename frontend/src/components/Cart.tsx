@@ -10,11 +10,13 @@ interface CartItem {
   quantity: number;
 }
 
+const CART_KEY = "japanWorthCart";
+
 function Cart() {
   const [cart, setCart] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    const savedCart = localStorage.getItem("japanWorthCart");
+    const savedCart = localStorage.getItem(CART_KEY);
 
     if (savedCart) {
       try {
@@ -25,6 +27,61 @@ function Cart() {
       }
     }
   }, []);
+
+  const saveCart = (newCart: CartItem[]) => {
+    setCart(newCart);
+
+    localStorage.setItem(
+      CART_KEY,
+      JSON.stringify(newCart)
+    );
+  };
+
+  const increaseQuantity = (jan: string) => {
+    const newCart = cart.map((item) =>
+      item.jan === jan
+        ? {
+            ...item,
+            quantity: item.quantity + 1,
+          }
+        : item
+    );
+
+    saveCart(newCart);
+  };
+
+  const decreaseQuantity = (jan: string) => {
+    const newCart = cart
+      .map((item) =>
+        item.jan === jan
+          ? {
+              ...item,
+              quantity: item.quantity - 1,
+            }
+          : item
+      )
+      .filter((item) => item.quantity > 0);
+
+    saveCart(newCart);
+  };
+
+  const removeItem = (jan: string) => {
+    const newCart = cart.filter(
+      (item) => item.jan !== jan
+    );
+
+    saveCart(newCart);
+  };
+
+  const clearCart = () => {
+    const confirmed = window.confirm(
+      "장바구니를 모두 비울까요?"
+    );
+
+    if (!confirmed) return;
+
+    saveCart([]);
+  };
 
   const totalJapanPrice = cart.reduce(
     (total, item) =>
@@ -41,6 +98,12 @@ function Cart() {
   const totalSaving =
     totalKoreaPrice - totalJapanPrice;
 
+  const totalQuantity = cart.reduce(
+    (total, item) =>
+      total + item.quantity,
+    0
+  );
+
   return (
     <div>
       <h2>🛒 장바구니</h2>
@@ -49,21 +112,46 @@ function Cart() {
         <p>장바구니가 비어 있습니다.</p>
       ) : (
         <>
+          <p>
+            총 {totalQuantity}개 상품
+          </p>
+
           {cart.map((item) => (
             <div key={item.jan}>
               <h3>{item.productName}</h3>
 
               <p>
-                수량: {item.quantity}개
-              </p>
-
-              <p>
-                일본 가격: ¥
+                일본 개당 가격: ¥
                 {item.japanPrice.toLocaleString()}
               </p>
 
+              <div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    decreaseQuantity(item.jan)
+                  }
+                >
+                  -
+                </button>
+
+                <strong>
+                  {" "}
+                  {item.quantity}개{" "}
+                </strong>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    increaseQuantity(item.jan)
+                  }
+                >
+                  +
+                </button>
+              </div>
+
               <p>
-                일본 원화 환산: ₩
+                일본 구매 예상: ₩
                 {(
                   item.japanPriceKrw *
                   item.quantity
@@ -71,12 +159,21 @@ function Cart() {
               </p>
 
               <p>
-                한국 가격: ₩
+                한국 구매 예상: ₩
                 {(
                   item.koreaPrice *
                   item.quantity
                 ).toLocaleString()}
               </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  removeItem(item.jan)
+                }
+              >
+                🗑️ 삭제
+              </button>
 
               <hr />
             </div>
@@ -87,14 +184,16 @@ function Cart() {
           <p>
             일본 구매 예상:{" "}
             <strong>
-              ₩{totalJapanPrice.toLocaleString()}
+              ₩
+              {totalJapanPrice.toLocaleString()}
             </strong>
           </p>
 
           <p>
             한국 구매 예상:{" "}
             <strong>
-              ₩{totalKoreaPrice.toLocaleString()}
+              ₩
+              {totalKoreaPrice.toLocaleString()}
             </strong>
           </p>
 
@@ -102,22 +201,34 @@ function Cart() {
             <p>
               ✅ 일본에서 구매하면 총{" "}
               <strong>
-                ₩{totalSaving.toLocaleString()}
+                ₩
+                {totalSaving.toLocaleString()}
               </strong>{" "}
               절약 예상
             </p>
-          ) : (
+          ) : totalSaving < 0 ? (
             <p>
-              🇰🇷 한국 구매가 총{" "}
+              🇰🇷 한국에서 구매하면 총{" "}
               <strong>
                 ₩
                 {Math.abs(
                   totalSaving
                 ).toLocaleString()}
               </strong>{" "}
-              저렴합니다.
+              절약 예상
+            </p>
+          ) : (
+            <p>
+              🤔 한국과 일본의 예상 구매 가격이 같습니다.
             </p>
           )}
+
+          <button
+            type="button"
+            onClick={clearCart}
+          >
+            장바구니 전체 비우기
+          </button>
         </>
       )}
     </div>
