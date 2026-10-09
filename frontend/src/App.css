@@ -267,3 +267,66 @@ strong {
       0 12px 40px rgba(0, 0, 0, 0.08);
   }
 }
+
+/* 글자 대비 강화 */
+
+.app-header h1 {
+  color: #111827;
+  opacity: 1;
+}
+
+.app-header p {
+  color: #475467;
+  opacity: 1;
+}
+
+.app-content h2 {
+  color: #111827;
+  font-weight: 800;
+  opacity: 1;
+}
+
+.app-content h3 {
+  color: #1f2937;
+  font-weight: 800;
+  opacity: 1;
+}
+
+.app-content p {
+  color: #344054;
+  opacity: 1;
+}
+
+.app-content label {
+  color: #344054;
+  font-weight: 600;
+}
+
+.app-content small {
+  color: #667085;
+}
+
+/* 바코드 번호 */
+.app-content strong {
+  color: #101828;
+}
+
+/* 하단 메뉴 */
+
+.bottom-nav button {
+  color: #667085;
+  opacity: 1;
+}
+
+.bottom-nav button.active {
+  color: #101828;
+  background: #f2f4f7;
+}
+
+.bottom-nav button.active span {
+  color: #101828;
+}
+
+.bottom-nav button:not(.active) span {
+  color: #667085;
+}
