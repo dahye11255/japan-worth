@@ -1,21 +1,269 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
 #root {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 24px;
-  text-align: center;
+  margin: 0;
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Noto Sans KR",
+    sans-serif;
+
+  background: #f3f5f7;
+  color: #1f2937;
+}
+
+button,
+input {
+  font: inherit;
 }
 
 button {
-  padding: 12px 20px;
-  font-size: 16px;
   cursor: pointer;
 }
 
-video {
-  margin-top: 20px;
-  border-radius: 12px;
+/* 앱 전체 */
+
+.app-shell {
+  width: 100%;
+  max-width: 520px;
+  min-height: 100dvh;
+
+  margin: 0 auto;
+
+  background: #f7f8fa;
+
+  position: relative;
 }
 
-strong {
+/* 상단 앱 헤더 */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    20px
+    16px;
+
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+
+  border-bottom: 1px solid #eaecf0;
+}
+
+.app-header h1 {
+  margin: 0;
+
   font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.app-header p {
+  margin: 4px 0 0;
+
+  font-size: 13px;
+
+  color: #667085;
+}
+
+/* 메인 내용 */
+
+.app-content {
+  width: 100%;
+
+  padding:
+    20px
+    16px
+    calc(100px + env(safe-area-inset-bottom));
+}
+
+/* 공통 카드 느낌 */
+
+.app-content > div {
+  width: 100%;
+}
+
+h2 {
+  margin: 12px 0 20px;
+
+  font-size: 21px;
+  font-weight: 800;
+}
+
+h3 {
+  margin-top: 20px;
+  margin-bottom: 10px;
+
+  font-size: 17px;
+}
+
+p {
+  line-height: 1.55;
+
+  color: #475467;
+}
+
+/* 버튼 */
+
+.app-content button {
+  min-height: 48px;
+
+  padding: 12px 18px;
+
+  border: 0;
+  border-radius: 14px;
+
+  font-weight: 700;
+
+  background: #111827;
+  color: white;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.app-content button:active {
+  transform: scale(0.98);
+}
+
+/* 입력창 */
+
+input {
+  width: 100%;
+
+  margin-top: 8px;
+
+  padding: 14px 16px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+
+  font-size: 16px;
+
+  color: #101828;
+  background: white;
+
+  outline: none;
+}
+
+input:focus {
+  border-color: #101828;
+
+  box-shadow:
+    0 0 0 3px rgba(16, 24, 40, 0.08);
+}
+
+/* 카메라 */
+
+video {
+  display: block;
+
+  width: 100%;
+
+  margin-top: 16px;
+
+  border-radius: 18px;
+
+  background: #000;
+}
+
+/* 구분선 */
+
+hr {
+  margin: 24px 0;
+
+  border: 0;
+  border-top: 1px solid #e4e7ec;
+}
+
+/* 바코드 숫자 */
+
+strong {
+  color: #101828;
+}
+
+/* 하단 네비게이션 */
+
+.bottom-nav {
+  position: fixed;
+
+  left: 50%;
+  bottom: 0;
+
+  transform: translateX(-50%);
+
+  width: 100%;
+  max-width: 520px;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  padding:
+    8px
+    12px
+    calc(8px + env(safe-area-inset-bottom));
+
+  background: rgba(255, 255, 255, 0.97);
+
+  border-top: 1px solid #eaecf0;
+
+  backdrop-filter: blur(14px);
+
+  z-index: 30;
+}
+
+.bottom-nav button {
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 3px;
+
+  height: 56px;
+
+  border: 0;
+  border-radius: 14px;
+
+  background: transparent;
+
+  color: #98a2b3;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bottom-nav button.active {
+  color: #111827;
+
+  background: #f2f4f7;
+}
+
+.nav-icon {
+  font-size: 21px;
+}
+
+/* 데스크톱에서 폰 프레임 느낌 */
+
+@media (min-width: 600px) {
+  .app-shell {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.04),
+      0 12px 40px rgba(0, 0, 0, 0.08);
+  }
 }

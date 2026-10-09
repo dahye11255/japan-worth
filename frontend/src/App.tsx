@@ -9,35 +9,39 @@ function App() {
   const [page, setPage] = useState<Page>("scan");
 
   return (
-    <main>
-      <h1>JapanWorth</h1>
+    <div className="app-shell">
+      <header className="app-header">
+        <div>
+          <h1>JapanWorth</h1>
+          <p>일본에서 살까? 한국에서 살까?</p>
+        </div>
+      </header>
 
-      <p>
-        일본에서 살까? 한국에서 살까?
-      </p>
+      <main className="app-content">
+        {page === "scan" && <BarcodeScanner />}
+        {page === "cart" && <Cart />}
+      </main>
 
-      <nav>
+      <nav className="bottom-nav">
         <button
           type="button"
+          className={page === "scan" ? "active" : ""}
           onClick={() => setPage("scan")}
         >
-          📷 상품 스캔
+          <span className="nav-icon">📷</span>
+          <span>스캔</span>
         </button>
 
         <button
           type="button"
+          className={page === "cart" ? "active" : ""}
           onClick={() => setPage("cart")}
         >
-          🛒 장바구니 보기
+          <span className="nav-icon">🛒</span>
+          <span>장바구니</span>
         </button>
       </nav>
-
-      <hr />
-
-      {page === "scan" && <BarcodeScanner />}
-
-      {page === "cart" && <Cart />}
-    </main>
+    </div>
   );
 }
 
