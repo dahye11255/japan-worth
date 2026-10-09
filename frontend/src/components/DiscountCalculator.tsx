@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { discountPolicies, calculateFinalPrice } from '../utils/discountCalculator';
 
 // 💡 팀원이 장바구니에서 넘겨줘야 할 데이터(Props) 정의
