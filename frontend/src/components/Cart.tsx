@@ -1,3 +1,4 @@
+import DiscountCalculator from "./DiscountCalculator";
 import { useEffect, useState } from "react";
 
 interface CartItem {
@@ -197,6 +198,10 @@ function Cart() {
               ¥{totalJapanYen.toLocaleString()}
             </strong>
           </p>
+
+          <DiscountCalculator
+            basePrice={totalJapanYen}
+          />
 
           <p>
             일본 구매 예상:{" "}
