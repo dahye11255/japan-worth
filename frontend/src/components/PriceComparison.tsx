@@ -5,20 +5,22 @@ interface PriceComparisonProps {
 }
 
 interface ExchangeRateResponse {
-  rates: {
-    KRW: number;
-  };
+  date: string;
+  base: string;
+  quote: string;
+  rate: number;
 }
+
+const FALLBACK_YEN_TO_KRW = 8.4;
 
 function PriceComparison({ koreaPrice }: PriceComparisonProps) {
   const [japanPrice, setJapanPrice] = useState("");
 
-  // 환율 상태
-  const [yenToKrw, setYenToKrw] = useState(9.2);
+  const [yenToKrw, setYenToKrw] = useState(FALLBACK_YEN_TO_KRW);
   const [exchangeLoading, setExchangeLoading] = useState(true);
   const [exchangeError, setExchangeError] = useState(false);
+  const [exchangeDate, setExchangeDate] = useState("");
 
-  // JPY → KRW 환율 자동 조회
   useEffect(() => {
     const fetchExchangeRate = async () => {
       try {
@@ -26,25 +28,30 @@ function PriceComparison({ koreaPrice }: PriceComparisonProps) {
         setExchangeError(false);
 
         const response = await fetch(
-          "https://api.frankfurter.app/latest?from=JPY&to=KRW"
+          "https://api.frankfurter.dev/v2/rate/jpy/krw"
         );
 
         if (!response.ok) {
-          throw new Error("환율 조회에 실패했습니다.");
+          throw new Error(
+            `환율 조회 실패: ${response.status}`
+          );
         }
 
         const data: ExchangeRateResponse = await response.json();
 
-        if (!data.rates?.KRW) {
-          throw new Error("환율 데이터가 없습니다.");
+        if (
+          typeof data.rate !== "number" ||
+          !Number.isFinite(data.rate)
+        ) {
+          throw new Error("환율 데이터가 올바르지 않습니다.");
         }
 
-        setYenToKrw(data.rates.KRW);
+        setYenToKrw(data.rate);
+        setExchangeDate(data.date);
       } catch (error) {
         console.error("환율 API 오류:", error);
 
-        // API가 실패하면 임시 환율 사용
-        setYenToKrw(9.2);
+        setYenToKrw(FALLBACK_YEN_TO_KRW);
         setExchangeError(true);
       } finally {
         setExchangeLoading(false);
@@ -92,16 +99,25 @@ function PriceComparison({ koreaPrice }: PriceComparisonProps) {
       </div>
 
       {exchangeLoading ? (
-        <p>환율 불러오는 중...</p>
+        <p>최신 환율 불러오는 중...</p>
       ) : (
-        <p>
-          적용 환율: ¥1 = ₩{yenToKrw.toFixed(2)}
-        </p>
+        <>
+          <p>
+            최신 환율: ¥1 = ₩{yenToKrw.toFixed(2)}
+          </p>
+
+          {exchangeDate && !exchangeError && (
+            <small>
+              환율 기준일: {exchangeDate}
+            </small>
+          )}
+        </>
       )}
 
       {exchangeError && (
         <p>
-          ⚠️ 실시간 환율 조회에 실패해 임시 환율을 적용했습니다.
+          ⚠️ 최신 환율 조회에 실패해 임시 환율
+          (¥1 = ₩{FALLBACK_YEN_TO_KRW})을 적용했습니다.
         </p>
       )}
 
@@ -145,7 +161,7 @@ function PriceComparison({ koreaPrice }: PriceComparisonProps) {
               </p>
 
               <p>
-                일본에서 굳이 구매할 가격 메리트가 크지 않습니다.
+                일본에서 구매할 가격 메리트가 크지 않습니다.
               </p>
             </div>
           ) : (
