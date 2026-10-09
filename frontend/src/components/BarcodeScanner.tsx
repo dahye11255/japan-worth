@@ -18,19 +18,28 @@ function BarcodeScanner() {
 
     const startScanner = async () => {
       try {
-        const controls = await reader.decodeFromVideoDevice(
-          undefined,
-          videoRef.current!,
-          (result) => {
-            if (result) {
-              const code = result.getText();
-
-              setBarcode(code);
-              setIsScanning(false);
-              controlsRef.current?.stop();
-            }
+        const controls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
-        );
+        },
+    videoRef.current!,
+    (result) => {
+      if (result) {
+        const code = result.getText();
+
+        console.log("인식된 바코드:", code);
+
+      setBarcode(code);
+      setIsScanning(false);
+      controlsRef.current?.stop();
+    }
+  }
+);
 
         controlsRef.current = controls;
       } catch (error) {
