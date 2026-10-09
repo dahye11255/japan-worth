@@ -83,7 +83,19 @@ function Cart() {
     saveCart([]);
   };
 
-  const totalJapanPrice = cart.reduce(
+  const totalQuantity = cart.reduce(
+    (total, item) =>
+      total + item.quantity,
+    0
+  );
+
+  const totalJapanYen = cart.reduce(
+    (total, item) =>
+      total + item.japanPrice * item.quantity,
+    0
+  );
+
+  const totalJapanPriceKrw = cart.reduce(
     (total, item) =>
       total + item.japanPriceKrw * item.quantity,
     0
@@ -96,13 +108,7 @@ function Cart() {
   );
 
   const totalSaving =
-    totalKoreaPrice - totalJapanPrice;
-
-  const totalQuantity = cart.reduce(
-    (total, item) =>
-      total + item.quantity,
-    0
-  );
+    totalKoreaPrice - totalJapanPriceKrw;
 
   return (
     <div>
@@ -119,6 +125,10 @@ function Cart() {
           {cart.map((item) => (
             <div key={item.jan}>
               <h3>{item.productName}</h3>
+
+              <p>
+                JAN: {item.jan}
+              </p>
 
               <p>
                 일본 개당 가격: ¥
@@ -182,10 +192,17 @@ function Cart() {
           <h3>장바구니 요약</h3>
 
           <p>
+            일본 현지 총액:{" "}
+            <strong>
+              ¥{totalJapanYen.toLocaleString()}
+            </strong>
+          </p>
+
+          <p>
             일본 구매 예상:{" "}
             <strong>
               ₩
-              {totalJapanPrice.toLocaleString()}
+              {totalJapanPriceKrw.toLocaleString()}
             </strong>
           </p>
 
