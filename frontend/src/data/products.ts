@@ -20,7 +20,7 @@ export const products: Product[] = [
   {
     jan: "4573102694805",
     nameJa: "MAXIMATIC フィギュア",
-    nameKo: "맥시매틱 피규어 (DEMO)",
+    nameKo: "맥시매틱 피규어 ",
     brand: "BANDAI SPIRITS",
     koreaPrice: 25000,
     weightGram: 500,
