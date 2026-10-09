@@ -1,6 +1,7 @@
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { useEffect, useRef, useState } from "react";
 import { products } from "../data/products";
+import PriceComparison from "./PriceComparison";
 
 function BarcodeScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -22,24 +23,24 @@ function BarcodeScanner() {
           {
             audio: false,
             video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
           },
-        },
-    videoRef.current!,
-    (result) => {
-      if (result) {
-        const code = result.getText();
+          videoRef.current!,
+          (result) => {
+            if (result) {
+              const code = result.getText();
 
-        console.log("인식된 바코드:", code);
+              console.log("인식된 바코드:", code);
 
-      setBarcode(code);
-      setIsScanning(false);
-      controlsRef.current?.stop();
-    }
-  }
-);
+              setBarcode(code);
+              setIsScanning(false);
+              controlsRef.current?.stop();
+            }
+          },
+        );
 
         controlsRef.current = controls;
       } catch (error) {
@@ -103,7 +104,13 @@ function BarcodeScanner() {
 
               <p>브랜드: {matchedProduct.brand}</p>
 
-              <p>한국 가격: ₩{matchedProduct.koreaPrice.toLocaleString()}</p>
+              <p>
+                한국 가격: ₩{matchedProduct.koreaPrice.toLocaleString()}
+              </p>
+
+              <PriceComparison
+                koreaPrice={matchedProduct.koreaPrice} 
+              />
             </div>
           ) : (
             <p>등록되지 않은 상품입니다.</p>
