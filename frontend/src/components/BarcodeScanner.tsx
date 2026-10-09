@@ -109,7 +109,9 @@ function BarcodeScanner() {
               </p>
 
               <PriceComparison
-                koreaPrice={matchedProduct.koreaPrice} 
+                koreaPrice={matchedProduct.koreaPrice}
+                productName={matchedProduct.nameKo}
+                jan={matchedProduct.jan}
               />
             </div>
           ) : (
