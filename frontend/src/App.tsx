@@ -12,8 +12,8 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1>JapanWorth</h1>
-          <p>일본에서 살까? 한국에서 살까?</p>
+          <h1>YENPICK</h1>
+          <p>일본 쇼핑, 가격부터 면세까지 한눈에.</p>
         </div>
       </header>
 
