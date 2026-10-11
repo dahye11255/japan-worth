@@ -329,7 +329,9 @@ function PriceComparison({
     `https://search.shopping.naver.com/search/all?query=${encodedKeyword}`;
 
   const coupangUrl =
-    `https://www.coupang.com/np/search?q=${encodedKeyword}`;
+    `https://www.google.com/search?q=${encodeURIComponent(
+      `${shoppingQuery} site:coupang.com`
+    )}`;
 
   const openShoppingSite = (
     url: string
