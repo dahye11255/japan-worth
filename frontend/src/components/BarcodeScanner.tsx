@@ -678,7 +678,7 @@ function BarcodeScanner() {
                 }
                 searchKeyword={
                   externalProduct.searchKeyword ??
-                  `${externalProduct.name} ${barcode}`
+                  externalProduct.name
                 }
                 jan={barcode}
               />

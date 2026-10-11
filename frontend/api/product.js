@@ -17,24 +17,163 @@ function cleanText(value) {
     : "";
 }
 
-function buildSearchKeyword(
-  jan,
-  name,
-  brand = ""
-) {
-  return [
-    brand,
-    name,
-    jan,
-  ]
-    .filter(Boolean)
-    .join(" ")
+/*
+ * 일본 쇼핑몰 제목 정리
+ *
+ * 예:
+ *
+ * 5個セット/【メール便】ロート製薬
+ * メンソレータム 薬用リップスティックXD
+ * 5個パック/美容・健康>衛生日用品
+ *
+ * ↓
+ *
+ * ロート製薬 メンソレータム 薬用リップスティックXD
+ */
+function cleanProductTitle(title) {
+  let text = cleanText(title);
+
+  if (!text) {
+    return "";
+  }
+
+  /*
+   * 【メール便】
+   * 【送料無料】
+   * 【第3類医薬品】
+   * 같은 괄호 문구 제거
+   */
+  text = text.replace(
+    /【[^】]*】/g,
+    " "
+  );
+
+  /*
+   * [送料無料] 형태 제거
+   */
+  text = text.replace(
+    /\[[^\]]*\]/g,
+    " "
+  );
+
+  /*
+   * 제목 맨 앞
+   * 5個セット/
+   * 3個セット
+   * 제거
+   */
+  text = text.replace(
+    /^\s*\d+\s*個\s*(セット|パック)\s*[\/／]?\s*/gi,
+    ""
+  );
+
+  /*
+   * 중간/뒤쪽
+   * 5個パック
+   * 3個セット
+   * 2本セット
+   */
+  text = text.replace(
+    /\d+\s*(個|本|袋|箱)\s*(セット|パック)/gi,
+    " "
+  );
+
+  /*
+   * まとめ買い
+   */
+  text = text.replace(
+    /まとめ買い/gi,
+    " "
+  );
+
+  /*
+   * メール便
+   * 送料無料
+   * 送料込
+   */
+  text = text.replace(
+    /(メール便|送料無料|送料込|送料込み)/gi,
+    " "
+  );
+
+  /*
+   * 뒤에 붙은 쇼핑몰 카테고리
+   *
+   * /美容・健康>衛生日用品
+   */
+  text = text.replace(
+    /[\/／][^\/／]*>.*$/g,
+    ""
+  );
+
+  /*
+   * | 이후 광고/카테고리 문구 제거
+   */
+  text = text.replace(
+    /\|.*$/g,
+    ""
+  );
+
+  /*
+   * 불필요한 슬래시 정리
+   */
+  text = text.replace(
+    /^[\/／]+|[\/／]+$/g,
+    " "
+  );
+
+  /*
+   * 공백 정리
+   */
+  text = text
+    .replace(/\s+/g, " ")
     .trim();
+
+  return text;
 }
 
 /*
- * "Lip Balm", "Shampoo"처럼
- * 너무 일반적인 상품명인지 확인
+ * 한국 판매가 검색용 키워드
+ *
+ * JAN은 넣지 않음.
+ * 일본 쇼핑몰 광고 문구도 넣지 않음.
+ */
+function buildSearchKeyword(
+  name,
+  brand = ""
+) {
+  const cleanName =
+    cleanProductTitle(name);
+
+  const cleanBrand =
+    cleanText(brand);
+
+  if (!cleanName) {
+    return "";
+  }
+
+  /*
+   * 상품명에 브랜드가 이미 들어있으면
+   * 브랜드 중복 추가하지 않음
+   */
+  if (
+    cleanBrand &&
+    !cleanName
+      .toLowerCase()
+      .includes(
+        cleanBrand.toLowerCase()
+      )
+  ) {
+    return `${cleanBrand} ${cleanName}`.trim();
+  }
+
+  return cleanName;
+}
+
+/*
+ * "Lip Balm"
+ * "Shampoo"
+ * 같이 너무 일반적인 상품명인지 확인
  */
 function isGenericProductName(name) {
   const normalized =
@@ -60,8 +199,7 @@ function isGenericProductName(name) {
 }
 
 /*
- * Open Facts 카테고리에서
- * 이상한 문구 제거
+ * Open Facts 카테고리 이상한 문구 제거
  */
 function cleanCategory(category) {
   const value =
@@ -85,11 +223,74 @@ function cleanCategory(category) {
 }
 
 /*
+ * Google Shopping 결과 중
+ * 단품에 가까운 결과 우선 선택
+ */
+function scoreShoppingResult(
+  result
+) {
+  const title =
+    cleanText(
+      result?.title
+    );
+
+  if (!title) {
+    return 9999;
+  }
+
+  let score = 0;
+
+  /*
+   * 여러 개 묶음 상품은 뒤로
+   */
+  if (
+    /\d+\s*個\s*(セット|パック)/i.test(
+      title
+    )
+  ) {
+    score += 50;
+  }
+
+  if (
+    /\d+\s*(本|袋|箱)\s*(セット|パック)/i.test(
+      title
+    )
+  ) {
+    score += 50;
+  }
+
+  if (
+    /まとめ買い/i.test(
+      title
+    )
+  ) {
+    score += 40;
+  }
+
+  /*
+   * 쇼핑몰 카테고리까지 붙은 결과
+   */
+  if (
+    title.includes(">")
+  ) {
+    score += 10;
+  }
+
+  /*
+   * 너무 긴 제목
+   */
+  if (
+    title.length > 80
+  ) {
+    score += 10;
+  }
+
+  return score;
+}
+
+/*
  * 1.
  * Google Shopping Japan
- *
- * 이미 JapanWorth에서 사용하는
- * SERPAPI_API_KEY 재사용
  */
 async function searchGoogleShoppingJapan(
   jan
@@ -120,7 +321,8 @@ async function searchGoogleShoppingJapan(
         google_domain:
           "google.co.jp",
 
-        api_key: apiKey,
+        api_key:
+          apiKey,
       });
 
     const response =
@@ -156,12 +358,25 @@ async function searchGoogleShoppingJapan(
         ? data.shopping_results
         : [];
 
+    if (
+      results.length === 0
+    ) {
+      return null;
+    }
+
     /*
-     * 상품명이 정상적으로 있는
-     * 첫 결과 사용
+     * 세트상품보다는
+     * 단품에 가까운 결과 우선
      */
+    const sortedResults =
+      [...results].sort(
+        (a, b) =>
+          scoreShoppingResult(a) -
+          scoreShoppingResult(b)
+      );
+
     const item =
-      results.find(
+      sortedResults.find(
         (result) =>
           cleanText(
             result?.title
@@ -172,8 +387,19 @@ async function searchGoogleShoppingJapan(
       return null;
     }
 
+    const rawName =
+      cleanText(
+        item.title
+      );
+
     const name =
-      cleanText(item.title);
+      cleanProductTitle(
+        rawName
+      );
+
+    if (!name) {
+      return null;
+    }
 
     const imageUrl =
       cleanText(
@@ -186,13 +412,11 @@ async function searchGoogleShoppingJapan(
     return {
       jan,
 
+      /*
+       * 화면에도 정제된 상품명 표시
+       */
       name,
 
-      /*
-       * Google Shopping의 source는
-       * 브랜드가 아니라 판매처일 수 있으므로
-       * brand에 억지로 넣지 않음
-       */
       brand: "",
 
       category: "",
@@ -201,10 +425,13 @@ async function searchGoogleShoppingJapan(
 
       quantity: "",
 
-      productQuantity: null,
+      productQuantity:
+        null,
 
       seller:
-        cleanText(item.source),
+        cleanText(
+          item.source
+        ),
 
       source:
         "Google Shopping Japan",
@@ -213,11 +440,16 @@ async function searchGoogleShoppingJapan(
         cleanText(
           item.product_link
         ) ||
-        cleanText(item.link),
+        cleanText(
+          item.link
+        ),
 
+      /*
+       * 한국 검색에는
+       * 깨끗한 상품명만 사용
+       */
       searchKeyword:
         buildSearchKeyword(
-          jan,
           name
         ),
     };
@@ -234,9 +466,6 @@ async function searchGoogleShoppingJapan(
 /*
  * 2.
  * Open Facts
- *
- * Food / Beauty / Products
- * 통합 조회
  */
 async function searchOpenFacts(
   jan
@@ -265,18 +494,22 @@ async function searchOpenFacts(
       )}`;
 
     const response =
-      await fetch(url, {
-        headers: {
-          Accept:
-            "application/json",
+      await fetch(
+        url,
+        {
+          headers: {
+            Accept:
+              "application/json",
 
-          "User-Agent":
-            "JapanWorth/1.0 (https://japan-worth.vercel.app)",
-        },
-      });
+            "User-Agent":
+              "JapanWorth/1.0 (https://japan-worth.vercel.app)",
+          },
+        }
+      );
 
     if (
-      response.status === 404
+      response.status ===
+      404
     ) {
       return null;
     }
@@ -303,7 +536,7 @@ async function searchOpenFacts(
     const item =
       data.product;
 
-    const name =
+    const rawName =
       cleanText(
         item.product_name_ja
       ) ||
@@ -312,6 +545,11 @@ async function searchOpenFacts(
       ) ||
       cleanText(
         item.product_name_en
+      );
+
+    const name =
+      cleanProductTitle(
+        rawName
       );
 
     const brand =
@@ -324,12 +562,8 @@ async function searchOpenFacts(
     }
 
     /*
-     * 예:
-     * 상품명 = Lip Balm
-     * 브랜드 = 없음
-     *
-     * 이런 데이터는 잘못된 한국 상품을
-     * 검색하게 만들기 때문에 버림
+     * Lip Balm처럼
+     * 일반적인 이름만 있는 경우 제외
      */
     if (
       isGenericProductName(
@@ -337,11 +571,6 @@ async function searchOpenFacts(
       ) &&
       !brand
     ) {
-      console.log(
-        "Open Facts 상품명이 너무 일반적이라 제외:",
-        name
-      );
-
       return null;
     }
 
@@ -383,7 +612,6 @@ async function searchOpenFacts(
 
       searchKeyword:
         buildSearchKeyword(
-          jan,
           name,
           brand
         ),
@@ -400,7 +628,7 @@ async function searchOpenFacts(
 
 /*
  * 3.
- * UPCitemdb fallback
+ * UPCitemdb
  */
 async function searchUpcItemDb(
   jan
@@ -412,15 +640,19 @@ async function searchUpcItemDb(
       )}`;
 
     const response =
-      await fetch(url, {
-        headers: {
-          Accept:
-            "application/json",
-        },
-      });
+      await fetch(
+        url,
+        {
+          headers: {
+            Accept:
+              "application/json",
+          },
+        }
+      );
 
     if (
-      response.status === 429
+      response.status ===
+      429
     ) {
       console.error(
         "UPCitemdb 조회 제한 초과"
@@ -430,7 +662,8 @@ async function searchUpcItemDb(
     }
 
     if (
-      response.status === 404
+      response.status ===
+      404
     ) {
       return null;
     }
@@ -463,9 +696,14 @@ async function searchUpcItemDb(
     const item =
       items[0];
 
-    const name =
+    const rawName =
       cleanText(
         item.title
+      );
+
+    const name =
+      cleanProductTitle(
+        rawName
       );
 
     const brand =
@@ -531,7 +769,6 @@ async function searchUpcItemDb(
 
       searchKeyword:
         buildSearchKeyword(
-          jan,
           name,
           brand
         ),
@@ -551,10 +788,12 @@ export default async function handler(
   res
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({
-      error:
-        "GET 요청만 가능합니다.",
-    });
+    return res
+      .status(405)
+      .json({
+        error:
+          "GET 요청만 가능합니다.",
+      });
   }
 
   const jan =
@@ -564,41 +803,51 @@ export default async function handler(
       : "";
 
   if (!jan) {
-    return res.status(400).json({
-      error:
-        "JAN / EAN 코드가 필요합니다.",
-    });
+    return res
+      .status(400)
+      .json({
+        error:
+          "JAN / EAN 코드가 필요합니다.",
+      });
   }
 
   if (
-    !/^\d{8,14}$/.test(jan)
+    !/^\d{8,14}$/.test(
+      jan
+    )
   ) {
-    return res.status(400).json({
-      error:
-        "올바른 JAN / EAN 코드를 입력해주세요.",
-    });
+    return res
+      .status(400)
+      .json({
+        error:
+          "올바른 JAN / EAN 코드를 입력해주세요.",
+      });
   }
 
   /*
-   * 같은 JAN 반복 조회 시
-   * SerpApi 호출 낭비 감소
+   * 개발 중에는 캐시 끄기.
+   *
+   * 안 그러면 같은 JAN 테스트 시
+   * 예전 검색어가 계속 보일 수 있음.
    */
   res.setHeader(
     "Cache-Control",
-    "s-maxage=86400, stale-while-revalidate=604800"
+    "no-store"
   );
 
   try {
     /*
      * 1순위
-     * 일본 Google Shopping
+     * Google Shopping Japan
      */
     const googleProduct =
       await searchGoogleShoppingJapan(
         jan
       );
 
-    if (googleProduct) {
+    if (
+      googleProduct
+    ) {
       return res
         .status(200)
         .json({
@@ -638,7 +887,9 @@ export default async function handler(
         jan
       );
 
-    if (upcProduct) {
+    if (
+      upcProduct
+    ) {
       return res
         .status(200)
         .json({
