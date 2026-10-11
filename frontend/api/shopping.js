@@ -5,12 +5,10 @@ export default async function handler(req, res) {
     });
   }
 
-  const url = new URL(
-    req.url,
-    `https://${req.headers.host}`
-  );
-
-  const query = url.searchParams.get("query");
+  const query =
+    typeof req.query?.query === "string"
+      ? req.query.query
+      : "";
 
   if (!query) {
     return res.status(400).json({
@@ -22,7 +20,7 @@ export default async function handler(req, res) {
 
   if (!apiKey) {
     return res.status(500).json({
-      error: "SerpApi API Key가 설정되지 않았습니다.",
+      error: "SERPAPI_API_KEY가 설정되지 않았습니다.",
     });
   }
 
@@ -32,35 +30,63 @@ export default async function handler(req, res) {
       q: query,
       gl: "kr",
       hl: "ko",
-      location: "Seoul, South Korea",
       api_key: apiKey,
     });
 
-    const response = await fetch(
+    const serpResponse = await fetch(
       `https://serpapi.com/search.json?${params.toString()}`
     );
 
-    if (!response.ok) {
-      throw new Error(
-        `SerpApi 요청 실패: ${response.status}`
-      );
+    const rawText = await serpResponse.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return res.status(502).json({
+        error: "SerpApi 응답을 JSON으로 읽지 못했습니다.",
+        serpStatus: serpResponse.status,
+        response: rawText.slice(0, 500),
+      });
     }
 
-    const data = await response.json();
+    if (!serpResponse.ok || data.error) {
+      return res.status(502).json({
+        error: "SerpApi 요청에 실패했습니다.",
+        serpStatus: serpResponse.status,
+        serpError: data.error ?? "알 수 없는 오류",
+      });
+    }
 
-    const results = (data.shopping_results ?? [])
-      .filter(
-        (item) =>
+    const shoppingResults = Array.isArray(
+      data.shopping_results
+    )
+      ? data.shopping_results
+      : [];
+
+    const results = shoppingResults
+      .filter((item) => {
+        return (
           typeof item.extracted_price === "number" &&
+          Number.isFinite(item.extracted_price) &&
           item.extracted_price > 0
-      )
+        );
+      })
       .slice(0, 5)
       .map((item) => ({
-        title: item.title,
-        source: item.source ?? "판매처 정보 없음",
+        title: item.title ?? "상품명 없음",
 
-        price: item.price,
-        extractedPrice: item.extracted_price,
+        source:
+          item.source ??
+          item.merchant ??
+          "판매처 정보 없음",
+
+        price:
+          item.price ?? "",
+
+        extractedPrice:
+          item.extracted_price,
 
         link:
           item.product_link ??
@@ -72,13 +98,22 @@ export default async function handler(req, res) {
       }));
 
     return res.status(200).json({
+      query,
+      count: results.length,
       results,
     });
   } catch (error) {
-    console.error("Google Shopping 검색 오류:", error);
+    console.error(
+      "Google Shopping 검색 오류:",
+      error
+    );
 
     return res.status(500).json({
       error: "한국 판매가 검색에 실패했습니다.",
+      detail:
+        error instanceof Error
+          ? error.message
+          : "알 수 없는 서버 오류",
     });
   }
 }
