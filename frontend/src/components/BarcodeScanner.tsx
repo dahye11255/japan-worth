@@ -15,7 +15,9 @@ function BarcodeScanner() {
   );
 
   useEffect(() => {
-    if (!isScanning || !videoRef.current) return;
+    if (!isScanning || !videoRef.current) {
+      return;
+    }
 
     const reader = new BrowserMultiFormatReader();
 
@@ -25,23 +27,31 @@ function BarcodeScanner() {
           {
             audio: false,
             video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
+              facingMode: {
+                ideal: "environment",
+              },
+              width: {
+                ideal: 1280,
+              },
+              height: {
+                ideal: 720,
+              },
             },
           },
           videoRef.current!,
           (result) => {
-            if (result) {
-              const code = result.getText();
-
-              console.log("인식된 바코드:", code);
-
-              setBarcode(code);
-              setIsScanning(false);
-
-              controlsRef.current?.stop();
+            if (!result) {
+              return;
             }
+
+            const code = result.getText();
+
+            console.log("인식된 바코드:", code);
+
+            setBarcode(code);
+            setIsScanning(false);
+
+            controlsRef.current?.stop();
           }
         );
 
@@ -61,6 +71,9 @@ function BarcodeScanner() {
   }, [isScanning]);
 
   const startScanning = () => {
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+
     setBarcode("");
     setIsScanning(true);
   };
@@ -87,9 +100,7 @@ function BarcodeScanner() {
             playsInline
           />
 
-          <p>
-            바코드를 카메라에 보여주세요.
-          </p>
+          <p>바코드를 카메라에 보여주세요.</p>
         </>
       )}
 
@@ -106,36 +117,36 @@ function BarcodeScanner() {
               <hr />
 
               <h3>
-                {matchedProduct.nameKo}
+                {matchedProduct.nameKo ??
+                  matchedProduct.nameJa ??
+                  "상품명 없음"}
               </h3>
 
-              <p>
-                {matchedProduct.nameJa}
-              </p>
+              {matchedProduct.nameJa && (
+                <p>{matchedProduct.nameJa}</p>
+              )}
 
               <p>
                 브랜드:{" "}
                 <strong>
-                  {matchedProduct.brand}
+                  {matchedProduct.brand ?? "정보 없음"}
                 </strong>
               </p>
 
               <PriceComparison
                 productName={
-                  matchedProduct.nameKo
+                  matchedProduct.nameKo ??
+                  matchedProduct.nameJa ??
+                  "상품명 없음"
                 }
-                jan={
-                  matchedProduct.jan
-                }
+                jan={matchedProduct.jan}
               />
             </div>
           ) : (
             <div>
               <hr />
 
-              <p>
-                등록되지 않은 상품입니다.
-              </p>
+              <p>등록되지 않은 상품입니다.</p>
 
               <button
                 type="button"
