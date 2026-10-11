@@ -9,8 +9,12 @@ interface ExternalProduct {
   brand: string;
   category: string;
   imageUrl: string;
+
   quantity?: string;
   productQuantity?: number | null;
+
+  searchKeyword?: string;
+
   source: string;
 }
 
@@ -673,7 +677,8 @@ function BarcodeScanner() {
                   externalProduct.name
                 }
                 searchKeyword={
-                  externalProduct.name
+                  externalProduct.searchKeyword ??
+                  `${externalProduct.name} ${barcode}`
                 }
                 jan={barcode}
               />
