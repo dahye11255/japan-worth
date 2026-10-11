@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 interface PriceComparisonProps {
   productName: string;
+  searchKeyword?: string;
   jan: string;
 }
 
@@ -40,6 +41,7 @@ const FALLBACK_YEN_TO_KRW = 8.4;
 
 function PriceComparison({
   productName,
+  searchKeyword,
   jan,
 }: PriceComparisonProps) {
   const [japanPrice, setJapanPrice] = useState("");
@@ -56,7 +58,6 @@ function PriceComparison({
   const [exchangeDate, setExchangeDate] =
     useState("");
 
-  // 한국 쇼핑 검색
   const [shoppingResults, setShoppingResults] =
     useState<ShoppingResult[]>([]);
 
@@ -69,9 +70,15 @@ function PriceComparison({
   const [selectedResult, setSelectedResult] =
     useState<ShoppingResult | null>(null);
 
-  // 검색 실패 시 직접 입력용
   const [manualKoreaPrice, setManualKoreaPrice] =
     useState("");
+
+  /*
+   * 실제 Google Shopping 검색에 사용할 검색어
+   * searchKeyword가 있으면 우선 사용
+   */
+  const shoppingQuery =
+    searchKeyword?.trim() || productName;
 
   /*
    * 환율 조회
@@ -133,7 +140,7 @@ function PriceComparison({
 
         const response = await fetch(
           `/api/shopping?query=${encodeURIComponent(
-            productName
+            shoppingQuery
           )}`
         );
 
@@ -157,7 +164,7 @@ function PriceComparison({
 
         setShoppingResults(results);
 
-        // 가장 관련도가 높은 첫 번째 결과를 기본 선택
+        // 검색 결과 첫 번째 상품을 기본 선택
         setSelectedResult(results[0]);
       } catch (error) {
         console.error(
@@ -175,10 +182,10 @@ function PriceComparison({
       }
     };
 
-    if (productName) {
+    if (shoppingQuery) {
       fetchShoppingResults();
     }
-  }, [productName]);
+  }, [shoppingQuery]);
 
   const japanPriceNumber =
     Number(japanPrice);
@@ -191,8 +198,8 @@ function PriceComparison({
       : 0;
 
   /*
-   * Google Shopping 결과가 있으면 자동 가격 사용
-   * 실패했다면 직접 입력한 가격 사용
+   * 자동 검색 결과가 있으면 선택된 상품 가격 사용
+   * 자동 검색 실패 시 직접 입력 가격 사용
    */
   const koreaPriceNumber =
     selectedResult
@@ -217,16 +224,17 @@ function PriceComparison({
       : 0;
 
   /*
-   * fallback 사이트
+   * fallback 검색 사이트
+   * 여기서도 동일한 searchKeyword 사용
    */
-  const encodedProductName =
-    encodeURIComponent(productName);
+  const encodedSearchKeyword =
+    encodeURIComponent(shoppingQuery);
 
   const naverShoppingUrl =
-    `https://search.shopping.naver.com/search/all?query=${encodedProductName}`;
+    `https://search.shopping.naver.com/search/all?query=${encodedSearchKeyword}`;
 
   const coupangUrl =
-    `https://www.coupang.com/np/search?q=${encodedProductName}`;
+    `https://www.coupang.com/np/search?q=${encodedSearchKeyword}`;
 
   const openShoppingSite = (
     url: string
@@ -357,10 +365,10 @@ function PriceComparison({
 
       {exchangeError && (
         <p>
-          ⚠️ 최신 환율 조회에
-          실패해 임시 환율 (¥1 =
-          ₩{FALLBACK_YEN_TO_KRW})
-          을 적용했습니다.
+          ⚠️ 최신 환율 조회에 실패해
+          임시 환율 (¥1 = ₩
+          {FALLBACK_YEN_TO_KRW})을
+          적용했습니다.
         </p>
       )}
 
@@ -383,6 +391,10 @@ function PriceComparison({
         🇰🇷 한국 온라인 판매가
       </h3>
 
+      <small>
+        검색어: {shoppingQuery}
+      </small>
+
       {shoppingLoading && (
         <p>
           한국 판매 상품을 자동으로
@@ -391,12 +403,10 @@ function PriceComparison({
       )}
 
       {!shoppingLoading &&
-        shoppingResults.length >
-          0 && (
+        shoppingResults.length > 0 && (
           <>
             <p>
-              검색 결과 중 동일한
-              상품인지 확인해주세요.
+              동일한 상품을 선택해주세요.
             </p>
 
             <div
@@ -527,7 +537,7 @@ function PriceComparison({
           </>
         )}
 
-      {/* 자동검색 실패 fallback */}
+      {/* 자동 검색 실패 fallback */}
 
       {!shoppingLoading &&
         shoppingError && (
@@ -557,8 +567,7 @@ function PriceComparison({
                   )
                 }
               >
-                🟢 네이버쇼핑에서
-                확인
+                🟢 네이버쇼핑에서 확인
               </button>
 
               <button
@@ -686,9 +695,9 @@ function PriceComparison({
                 </h3>
 
                 <p>
-                  편의성과 수하물
-                  공간을 고려해
-                  구매처를 선택하세요.
+                  편의성과 수하물 공간을
+                  고려해 구매처를
+                  선택하세요.
                 </p>
               </div>
             )}

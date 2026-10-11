@@ -139,6 +139,9 @@ function BarcodeScanner() {
                   matchedProduct.nameJa ??
                   "상품명 없음"
                 }
+                searchKeyword={
+                  matchedProduct.searchKeyword
+                }
                 jan={matchedProduct.jan}
               />
             </div>

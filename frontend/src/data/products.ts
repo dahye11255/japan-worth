@@ -22,7 +22,7 @@ export const products = [
     nameJa: "MONO graph ちいかわ ドリーム",
     nameKo: "모노그래프 치이카와 드림 샤프 0.5mm",
     brand: "TOMBOW",
-    searchKeyword: "TOMBOW 모노그래프 치이카와 드림 샤프 0.5mm",
+    searchKeyword: "TOMBOW 모노그래프 치이카와 드림 0.5mm",
     weightGram: 20,
     category: "stationery"
   },
