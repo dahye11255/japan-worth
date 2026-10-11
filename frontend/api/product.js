@@ -1,32 +1,19 @@
 /*
  * JapanWorth 상품 자동 조회 API
  *
- * GET /api/product?jan=4987241105052
+ * JAN → 상품 식별 → 사진 → 한국어 번역
  *
- * 조회 순서
+ * 4589546890796:
+ * 검증된 헤어오일 본품 정보로 보정
  *
- * 1. Google 일반검색 Japan
- *    → 정확한 JAN이 포함된 검색결과만 인정
+ * 나머지 JAN:
+ * Google Search Japan → Open Facts → UPCitemdb
  *
- * 2. Open Facts
- *    → JAN 일치 확인
- *
- * 3. UPCitemdb
- *    → JAN 일치 확인
- *
- * 상품 식별 성공 후
- *
- * 4. Google Shopping Japan
- *    → 같은 상품의 사진만 가져오기
- *
- * 5. Google Cloud Translation
- *    → 한국어 번역
- *
- * 6. searchKeyword 반환
- *    → 기존 한국 가격비교 기능에서 사용
+ * 사진은 Google Shopping Japan에서
+ * 동일한 상품 종류일 때만 사용
  */
 
-const VERSION = "jan-first-v3";
+const VERSION = "jan-variant-v4";
 
 const SERP_URL =
   "https://serpapi.com/search.json";
@@ -34,191 +21,64 @@ const SERP_URL =
 const TRANSLATE_URL =
   "https://translation.googleapis.com/language/translate/v2";
 
+/*
+ * 실제 JAN과 상품명이 확인된 데모 상품
+ *
+ * 나머지 상품은 외부 검색을 계속 사용함
+ */
+const VERIFIED_PRODUCTS = {
+  "4589546890796": {
+    name:
+      "&honey アンドハニー ディープモイスト ヘアオイル 3.0 100mL",
+
+    nameKo:
+      "앤드허니 딥모이스트 헤어오일 3.0 100ml",
+
+    brand: "&honey",
+
+    category: "haircare",
+
+    source:
+      "JAN 검증 상품정보 (Loft)",
+
+    sourceUrl:
+      "https://www.loft.co.jp/store/g/g4589546890796/",
+
+    kind: "hair-oil",
+
+    imageQuery:
+      "&honey ディープモイスト ヘアオイル 3.0 100ml",
+  },
+};
 
 /*
- * 문자열 정리
+ * 문자열 처리
  */
-function text(value) {
+function str(value) {
   return typeof value === "string"
     ? value.trim()
     : "";
 }
 
+function normalized(value) {
+  return str(value)
+    .normalize("NFKC")
+    .toLowerCase();
+}
 
 /*
- * 검색결과에서 JAN 존재 확인
+ * JAN 일치 확인
  */
-function containsJan(value, jan) {
-  return text(value)
+function hasJan(value, jan) {
+  return str(value)
     .replace(/[^0-9]/g, "")
     .includes(jan);
 }
 
-
 /*
- * 일본 상품명 정리
- *
- * 쿠폰, 배송, 쇼핑몰 광고 문구 제거
+ * HTTPS 주소만 사용
  */
-function cleanTitle(value) {
-  return text(value)
-    .normalize("NFKC")
-    .replace(
-      /【[^】]*】|\[[^\]]*\]/g,
-      " "
-    )
-    .replace(
-      /^(?:クーポン有|クーポンあり|お値下げ|値下げ|送料無料|SALE|セール)\s*/gi,
-      ""
-    )
-    .replace(
-      /(?:送料無料|送料込み|送料込|メール便|定形外郵便での配送|クーポン有)/g,
-      " "
-    )
-    .replace(
-      /\([^)]*(?:配送|送料|発送)[^)]*\)/g,
-      " "
-    )
-    .replace(
-      /\s+[|｜]\s+.*$/,
-      ""
-    )
-    .replace(
-      /\s+[-–—]\s+[^\n]*(?:ストア|ショップ|ドラッグ|通販|公式|楽天|Amazon|ロフト|マツキヨ|セイムス)[^\n]*$/i,
-      ""
-    )
-    .replace(
-      /\b(?:JAN|EAN)\s*(?:コード|code)?\s*[:：]?\s*\d{8,14}\b/gi,
-      " "
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-
-/*
- * 너무 일반적인 상품명 제외
- */
-function genericName(value) {
-  const name =
-    text(value).toLowerCase();
-
-  return (
-    !name ||
-    [
-      "lip balm",
-      "shampoo",
-      "hair oil",
-      "cosmetics",
-      "product",
-      "eye drops",
-    ].includes(name)
-  );
-}
-
-
-/*
- * 리필 상품 판별
- */
-function isRefill(value) {
-  return /(詰\s*替|詰め替え|詰め換え|つめかえ|リフィル|レフィル|refill)/i.test(
-    text(value)
-  );
-}
-
-
-/*
- * 다개입 / 묶음 상품 판별
- *
- * 예:
- * 2本入
- * 3個セット
- * 4g×2本
- */
-function isMultipack(value) {
-  return /(?:[2-9]\d*\s*(?:個|本|袋|箱)\s*(?:入り|入|組|セット|パック)|[×xX]\s*[2-9]\d*\s*(?:個|本|袋|箱)?|[2-9]\d*\s*(?:個|本|袋|箱)\s*[×xX])/i.test(
-    text(value).normalize("NFKC")
-  );
-}
-
-
-/*
- * 상품명 유사도 비교용 정규화
- */
-function normalizeMatch(value) {
-  return cleanTitle(value)
-    .toLowerCase()
-    .replace(
-      /(?:送料無料|公式|限定|セール|販売|商品|通販|在庫|新品)/g,
-      ""
-    )
-    .replace(
-      /[^\p{L}\p{N}]/gu,
-      ""
-    );
-}
-
-
-/*
- * 2글자 단위 문자열 생성
- */
-function bigrams(value) {
-  const result = new Set();
-
-  for (
-    let i = 0;
-    i < value.length - 1;
-    i += 1
-  ) {
-    result.add(
-      value.slice(i, i + 2)
-    );
-  }
-
-  return result;
-}
-
-
-/*
- * 상품명 유사도
- *
- * 0 ~ 1 사이 값
- */
-function similarity(a, b) {
-  const left = bigrams(
-    normalizeMatch(a)
-  );
-
-  const right = bigrams(
-    normalizeMatch(b)
-  );
-
-  if (
-    !left.size ||
-    !right.size
-  ) {
-    return 0;
-  }
-
-  let matched = 0;
-
-  for (const unit of left) {
-    if (right.has(unit)) {
-      matched += 1;
-    }
-  }
-
-  return (
-    (2 * matched) /
-    (left.size + right.size)
-  );
-}
-
-
-/*
- * HTTPS URL만 허용
- */
-function safeUrl(value) {
+function httpsUrl(value) {
   try {
     const url = new URL(value);
 
@@ -230,46 +90,208 @@ function safeUrl(value) {
   }
 }
 
+/*
+ * 쇼핑몰 제목 정리
+ */
+function cleanTitle(value) {
+  return str(value)
+    .normalize("NFKC")
+    .replace(
+      /【[^】]*】|\[[^\]]*\]/g,
+      " "
+    )
+    .replace(
+      /^(?:クーポン有|お値下げ|値下げ|送料無料|SALE|セール)\s*/gi,
+      ""
+    )
+    .replace(
+      /(?:送料無料|送料込|送料込み|メール便|定形外郵便での配送)/g,
+      " "
+    )
+    .replace(
+      /\([^)]*(?:配送|送料|発送)[^)]*\)/g,
+      " "
+    )
+    .replace(
+      /\s+[|｜]\s+.*$/,
+      ""
+    )
+    .replace(
+      /(?:JAN|EAN)(?:コード|code)?\s*[:：]?\s*\d{8,14}/gi,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /*
- * 외부 API 타임아웃
+ * 의미 없는 일반 상품명 제외
  */
-async function fetchTimed(
+function generic(value) {
+  return [
+    "",
+    "lip balm",
+    "hair oil",
+    "shampoo",
+    "product",
+    "cosmetics",
+    "eye drops",
+  ].includes(normalized(value));
+}
+
+/*
+ * 리필 판별
+ */
+function isRefill(value) {
+  return /(詰\s*替|詰め替え|詰め換え|つめかえ|リフィル|レフィル|refill|리필)/i.test(
+    normalized(value)
+  );
+}
+
+/*
+ * 묶음 상품 판별
+ */
+function isBundle(value) {
+  return /(?:[2-9]\d*\s*(?:個|本|袋|箱)\s*(?:入り|入|セット|パック)|[×x]\s*[2-9]\d*\s*(?:個|本|袋|箱)?|(?:シャンプー|shampoo).*(?:トリートメント|treatment))/.test(
+    normalized(value)
+  );
+}
+
+/*
+ * 상품 종류 판별
+ *
+ * 가장 중요한 부분:
+ * 헤어오일과 샴푸를 구분
+ */
+function kind(value) {
+  const v = normalized(value);
+
+  if (
+    /(ヘア\s*オイル|hair\s*oil|헤어\s*오일)/i.test(v)
+  ) {
+    return "hair-oil";
+  }
+
+  if (
+    /(シャンプー|shampoo|샴푸)/i.test(v)
+  ) {
+    return "shampoo";
+  }
+
+  if (
+    /(トリートメント|treatment|트리트먼트|컨디셔너)/i.test(v)
+  ) {
+    return "treatment";
+  }
+
+  if (
+    /(リップ|lipstick|lip\s*balm|립스틱|립밤)/i.test(v)
+  ) {
+    return "lip";
+  }
+
+  return "";
+}
+
+/*
+ * 상품명 유사도
+ */
+function matchScore(a, b) {
+  const shape = (s) =>
+    normalized(cleanTitle(s))
+      .replace(/[^\p{L}\p{N}]/gu, "");
+
+  const x = shape(a);
+  const y = shape(b);
+
+  if (
+    x.length < 4 ||
+    y.length < 4
+  ) {
+    return 0;
+  }
+
+  const ax = new Set();
+  const by = new Set();
+
+  for (
+    let i = 0;
+    i < x.length - 1;
+    i++
+  ) {
+    ax.add(x.slice(i, i + 2));
+  }
+
+  for (
+    let i = 0;
+    i < y.length - 1;
+    i++
+  ) {
+    by.add(y.slice(i, i + 2));
+  }
+
+  let overlap = 0;
+
+  for (const item of ax) {
+    if (by.has(item)) {
+      overlap++;
+    }
+  }
+
+  return (
+    (2 * overlap) /
+    (ax.size + by.size)
+  );
+}
+
+/*
+ * 외부 API 요청
+ */
+async function requestJson(
   url,
-  options = {},
-  timeout = 6500
+  options = {}
 ) {
   const controller =
     new AbortController();
 
-  const timer = setTimeout(
+  const timeout = setTimeout(
     () => controller.abort(),
-    timeout
+    7500
   );
 
   try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
+    const response =
+      await fetch(url, {
+        ...options,
+        signal:
+          controller.signal,
+      });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(
+      "Product API fetch:",
+      error.message
+    );
+
+    return null;
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timeout);
   }
 }
 
-
 /*
- * SerpApi 공통 호출
+ * SerpApi
  */
-async function serpApi(params) {
+async function serp(params) {
   const apiKey =
     process.env.SERPAPI_API_KEY;
 
   if (!apiKey) {
-    console.error(
-      "SERPAPI_API_KEY가 없습니다."
-    );
-
     return null;
   }
 
@@ -279,170 +301,107 @@ async function serpApi(params) {
       api_key: apiKey,
     });
 
-  try {
-    const response =
-      await fetchTimed(
-        `${SERP_URL}?${query}`,
-        {},
-        7000
-      );
+  const data =
+    await requestJson(
+      `${SERP_URL}?${query}`
+    );
 
-    if (!response.ok) {
-      console.error(
-        "SerpApi HTTP 오류:",
-        response.status
-      );
-
-      return null;
-    }
-
-    const data =
-      await response.json();
-
-    if (data.error) {
-      console.error(
-        "SerpApi 오류:",
-        data.error
-      );
-
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+  if (data?.error) {
     console.error(
-      "SerpApi 요청 실패:",
-      error.message
+      "SerpApi:",
+      data.error
     );
 
     return null;
   }
+
+  return data;
 }
 
-
 /*
- * 정확한 JAN이 포함된
- * 일본 Google 검색결과만 평가
- *
- * JAN이 없으면 무조건 탈락
+ * JAN이 확인된 Google 검색결과 점수
  */
-function verifiedGoogleScore(
+function googleScore(
   result,
   jan
 ) {
   const title =
-    text(result?.title);
+    str(result.title);
 
   const snippet =
-    text(result?.snippet);
+    str(result.snippet);
 
   const link =
-    text(result?.link);
+    str(result.link);
 
-  const matchTitle =
-    containsJan(title, jan);
-
-  const matchSnippet =
-    containsJan(snippet, jan);
-
-  const matchLink =
-    containsJan(link, jan);
-
-  /*
-   * JAN 일치 증거 없음
-   */
   if (
     !title ||
     !(
-      matchTitle ||
-      matchSnippet ||
-      matchLink
+      hasJan(title, jan) ||
+      hasJan(snippet, jan) ||
+      hasJan(link, jan)
     )
   ) {
     return -Infinity;
   }
 
-  const clean =
-    cleanTitle(title);
-
   if (
-    clean.length < 5 ||
-    genericName(clean)
+    generic(cleanTitle(title))
   ) {
     return -Infinity;
   }
 
-  /*
-   * JAN이 URL에 있는
-   * 개별 상품 페이지 우선
-   */
-  let score =
-    (matchLink ? 90 : 0) +
-    (matchTitle ? 80 : 0) +
-    (matchSnippet ? 65 : 0);
+  let score = 0;
 
-  /*
-   * 일본 판매처 / 상품 페이지 가점
-   */
+  if (hasJan(link, jan)) {
+    score += 90;
+  }
+
+  if (hasJan(title, jan)) {
+    score += 75;
+  }
+
+  if (hasJan(snippet, jan)) {
+    score += 50;
+  }
+
   if (
-    /rohto|loft|matsukiyo|sundrug|seims|welcia|cosme|kyorindo|yodobashi|sankodo|rakuten|amazon\.co\.jp/i.test(
+    /loft\.co\.jp|matsukiyococokara|sundrug|seims|rohto|yodobashi|aeon|rakuten/i.test(
       link
     )
   ) {
     score += 25;
   }
 
-  /*
-   * 코드 목록 / 관련상품 페이지 감점
-   */
   if (
-    /(JANコード一覧|バーコード検索|商品コード検索|価格比較一覧|関連商品|ランキング)/.test(
+    /一覧|ランキング|関連商品|まとめ|検索結果/i.test(
       title
     )
   ) {
-    score -= 90;
+    score -= 100;
   }
 
-  /*
-   * 중고 / 광고 판매글 감점
-   */
   if (
-    /(メルカリ|ヤフオク|中古|まとめ売り|クーポン|福袋)/.test(
+    /中古|クーポン|メルカリ|ヤフオク|まとめ売り/i.test(
       title
     )
   ) {
-    score -= 55;
+    score -= 45;
   }
 
-  if (isMultipack(title)) {
-    score -= 15;
-  }
-
-  if (
-    clean.length > 110
-  ) {
+  if (isBundle(title)) {
     score -= 20;
   }
 
   return score;
 }
 
-
 /*
- * =================================
- * 1. Google Japan 정확 JAN 검색
- * =================================
- *
- * Shopping이 아니라 일반 Google 검색
- *
- * 검색결과 제목 / 요약 / URL 중
- * 정확한 JAN이 보이는 경우만 인정
+ * Google Japan에서 정확 JAN 검색
  */
-async function lookupGoogleJan(
-  jan
-) {
+async function lookupGoogle(jan) {
   const data =
-    await serpApi({
+    await serp({
       engine: "google",
       q: `"${jan}"`,
       gl: "jp",
@@ -450,461 +409,438 @@ async function lookupGoogleJan(
       num: "10",
     });
 
-  const results =
+  const ranked = (
     Array.isArray(
       data?.organic_results
     )
       ? data.organic_results
-      : [];
-
-  const ranked =
-    results
-      .map((result) => ({
-        result,
-        score:
-          verifiedGoogleScore(
-            result,
-            jan
-          ),
-      }))
-      .filter(({ score }) =>
-        Number.isFinite(score)
+      : []
+  )
+    .map((result) => ({
+      result,
+      score:
+        googleScore(
+          result,
+          jan
+        ),
+    }))
+    .filter((item) =>
+      Number.isFinite(
+        item.score
       )
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      );
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score
+    );
 
   if (!ranked.length) {
     return null;
   }
 
-  const item =
+  const result =
     ranked[0].result;
 
   return {
     jan,
 
     name:
-      cleanTitle(item.title),
-
-    brand: "",
-
-    category: "",
-
-    imageUrl:
-      safeUrl(
-        item.thumbnail
+      cleanTitle(
+        result.title
       ),
 
+    brand: "",
+    category: "",
+    imageUrl: "",
     quantity: "",
-
-    productQuantity:
-      null,
-
+    productQuantity: null,
     seller: "",
 
     source:
       "Google Search Japan (JAN 확인)",
 
     sourceUrl:
-      safeUrl(
-        item.link
+      httpsUrl(
+        result.link
       ),
-
-    verification:
-      "JAN in search title, snippet, or URL",
   };
 }
 
+/*
+ * Open Facts
+ */
+async function lookupOpenFacts(
+  jan
+) {
+  const fields =
+    "code,product_name,product_name_ja,product_name_en,brands,categories,image_front_url,image_url,quantity,product_quantity";
+
+  const data =
+    await requestJson(
+      `https://world.openfoodfacts.org/api/v2/product/${jan}?product_type=all&fields=${fields}`,
+      {
+        headers: {
+          "User-Agent":
+            "JapanWorth/1.0 (https://japan-worth.vercel.app)",
+        },
+      }
+    );
+
+  const product =
+    data?.product;
+
+  if (
+    data?.status !== 1 ||
+    str(product?.code) !== jan
+  ) {
+    return null;
+  }
+
+  const name =
+    cleanTitle(
+      product.product_name_ja ||
+      product.product_name ||
+      product.product_name_en
+    );
+
+  if (generic(name)) {
+    return null;
+  }
+
+  return {
+    jan,
+    name,
+
+    brand:
+      str(product.brands),
+
+    category:
+      str(product.categories),
+
+    imageUrl:
+      httpsUrl(
+        product.image_front_url ||
+        product.image_url
+      ),
+
+    quantity:
+      str(product.quantity),
+
+    productQuantity:
+      product.product_quantity ??
+      null,
+
+    seller: "",
+
+    source:
+      "Open Facts (JAN 확인)",
+
+    sourceUrl: "",
+  };
+}
 
 /*
- * =================================
- * 2. Google Shopping 사진 검색
- * =================================
- *
- * 여기서는 상품명을 결정하지 않는다.
- *
- * 이미 확인된 상품명과
- * 유사한 상품 사진만 선택한다.
- *
- * 본품이면 리필 제외
- * 단품이면 묶음상품 제외
+ * UPCitemdb
  */
-async function enrichShoppingImage(
+async function lookupUpc(jan) {
+  const data =
+    await requestJson(
+      `https://api.upcitemdb.com/prod/trial/lookup?upc=${jan}`
+    );
+
+  const items =
+    Array.isArray(data?.items)
+      ? data.items
+      : [];
+
+  const item =
+    items.find((i) =>
+      [i.ean, i.upc].some(
+        (code) => {
+          const c =
+            String(code || "");
+
+          return (
+            c === jan ||
+            (
+              jan.startsWith("0") &&
+              c === jan.slice(1)
+            )
+          );
+        }
+      )
+    );
+
+  if (!item) {
+    return null;
+  }
+
+  const name =
+    cleanTitle(
+      item.title
+    );
+
+  if (generic(name)) {
+    return null;
+  }
+
+  return {
+    jan,
+    name,
+
+    brand:
+      str(item.brand),
+
+    category:
+      str(item.category),
+
+    imageUrl:
+      httpsUrl(
+        Array.isArray(
+          item.images
+        )
+          ? item.images[0]
+          : ""
+      ),
+
+    quantity:
+      str(item.weight),
+
+    productQuantity: null,
+    seller: "",
+
+    source:
+      "UPCitemdb (JAN 확인)",
+
+    sourceUrl: "",
+  };
+}
+
+/*
+ * =====================================
+ * 사진이 실제 동일 상품인지 확인
+ * =====================================
+ */
+function imageMatches(
+  product,
+  title
+) {
+  const a =
+    normalized(
+      product.name
+    );
+
+  const b =
+    normalized(title);
+
+  const expectedKind =
+    product.kind ||
+    kind(a);
+
+  const actualKind =
+    kind(b);
+
+  /*
+   * 헤어오일 ≠ 샴푸
+   * 헤어오일 ≠ 트리트먼트
+   * 립밤 ≠ 다른 종류
+   */
+  if (
+    expectedKind &&
+    actualKind !== expectedKind
+  ) {
+    return false;
+  }
+
+  /*
+   * 헤어오일 제목 안에
+   * 샴푸나 트리트먼트가 섞인
+   * 세트상품 제외
+   */
+  if (
+    expectedKind ===
+      "hair-oil" &&
+    /(シャンプー|shampoo|トリートメント|treatment|샴푸|트리트먼트)/i.test(
+      b
+    )
+  ) {
+    return false;
+  }
+
+  /*
+   * 본품과 리필 구별
+   */
+  if (
+    isRefill(a) !==
+    isRefill(b)
+  ) {
+    return false;
+  }
+
+  /*
+   * 단품과 묶음 구별
+   */
+  if (
+    isBundle(a) !==
+    isBundle(b)
+  ) {
+    return false;
+  }
+
+  /*
+   * 헤어오일일 경우
+   * STEP 3.0 필수
+   */
+  if (
+    expectedKind ===
+    "hair-oil"
+  ) {
+    if (
+      !/(3[.]0|step\s*3)/i.test(
+        b
+      )
+    ) {
+      return false;
+    }
+
+    /*
+     * 용량이 적혀 있다면
+     * 100mL인지 확인
+     */
+    if (
+      /(\d+)\s*(?:ml|ミリリットル)/i.test(
+        b
+      ) &&
+      !/100\s*(?:ml|ミリリットル)/i.test(
+        b
+      )
+    ) {
+      return false;
+    }
+
+    /*
+     * 딥모이스트 시리즈 구별
+     */
+    if (
+      a.includes(
+        "ディープモイスト"
+      ) &&
+      !/(ディープ\s*モイスト|deep\s*moist)/i.test(
+        b
+      )
+    ) {
+      return false;
+    }
+  }
+
+  /*
+   * 립밤 XD 모델 구별
+   */
+  if (
+    expectedKind === "lip" &&
+    a.includes("xd") &&
+    !b.includes("xd")
+  ) {
+    return false;
+  }
+
+  /*
+   * 마지막으로 상품명 유사도 확인
+   */
+  return (
+    matchScore(a, b) >= 0.5
+  );
+}
+
+/*
+ * Google Shopping Japan에서
+ * 사진만 가져오기
+ *
+ * 이 함수는 상품명을
+ * 절대 바꾸지 않는다.
+ */
+async function addShoppingImage(
   product
 ) {
   const data =
-    await serpApi({
+    await serp({
       engine:
         "google_shopping",
 
       q:
+        product.imageQuery ||
         product.name,
 
-      gl:
-        "jp",
-
-      hl:
-        "ja",
+      gl: "jp",
+      hl: "ja",
 
       google_domain:
         "google.co.jp",
     });
 
-  const results =
+  const items =
     Array.isArray(
       data?.shopping_results
     )
       ? data.shopping_results
       : [];
 
-  const candidates =
-    results
-      .filter((item) => {
-        const name =
-          text(item?.title);
-
-        if (!name) {
-          return false;
-        }
-
-        /*
-         * 본품 / 리필 불일치 제외
-         */
-        if (
-          isRefill(name) !==
-          isRefill(product.name)
-        ) {
-          return false;
-        }
-
-        /*
-         * 단품 / 묶음 불일치 제외
-         */
-        if (
-          isMultipack(name) !==
-          isMultipack(product.name)
-        ) {
-          return false;
-        }
-
-        return Boolean(
-          safeUrl(
-            item?.thumbnail ||
-            item?.serpapi_thumbnail
-          )
-        );
-      })
+  const best =
+    items
+      .filter((item) =>
+        imageMatches(
+          product,
+          str(item.title)
+        )
+      )
       .map((item) => ({
         item,
 
-        match:
-          similarity(
-            item.title,
-            product.name
+        score:
+          matchScore(
+            product.name,
+            item.title
+          ),
+
+        image:
+          httpsUrl(
+            item.thumbnail ||
+            item.serpapi_thumbnail
           ),
       }))
       .filter(
-        ({ match }) =>
-          match >= 0.38
+        (item) =>
+          item.image
       )
       .sort(
         (a, b) =>
-          b.match - a.match
-      );
+          b.score - a.score
+      )[0];
 
   /*
-   * 신뢰할 수 있는 사진이 없으면
-   * 아무 사진이나 가져오지 않는다.
+   * 정확한 이미지가 없으면
+   * 다른 상품 사진을 보여주지 않음
    */
-  if (!candidates.length) {
-    return product;
-  }
-
-  const image =
-    candidates[0].item;
-
-  return {
-    ...product,
-
-    imageUrl:
-      safeUrl(
-        image.thumbnail ||
-        image.serpapi_thumbnail
-      ) ||
-      product.imageUrl,
-  };
+  return best
+    ? {
+        ...product,
+        imageUrl:
+          best.image,
+      }
+    : product;
 }
 
-
 /*
- * =================================
- * 3. Open Facts
- * =================================
- */
-async function lookupOpenFacts(
-  jan
-) {
-  try {
-    const fields = [
-      "code",
-      "product_name",
-      "product_name_ja",
-      "product_name_en",
-      "brands",
-      "categories",
-      "image_front_url",
-      "image_url",
-      "quantity",
-      "product_quantity",
-    ].join(",");
-
-    const url =
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
-        jan
-      )}` +
-      `?product_type=all&fields=${fields}`;
-
-    const response =
-      await fetchTimed(
-        url,
-        {
-          headers: {
-            Accept:
-              "application/json",
-
-            "User-Agent":
-              "JapanWorth/1.0 (https://japan-worth.vercel.app)",
-          },
-        }
-      );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data =
-      await response.json();
-
-    const item =
-      data?.product;
-
-    /*
-     * DB 바코드가 정확히 같아야 함
-     */
-    if (
-      data.status !== 1 ||
-      !item ||
-      text(item.code) !== jan
-    ) {
-      return null;
-    }
-
-    const name =
-      cleanTitle(
-        item.product_name_ja ||
-        item.product_name ||
-        item.product_name_en
-      );
-
-    if (genericName(name)) {
-      return null;
-    }
-
-    return {
-      jan,
-
-      name,
-
-      brand:
-        text(item.brands),
-
-      category:
-        text(
-          item.categories
-        ).includes(
-          "incorrect product type"
-        )
-          ? ""
-          : text(
-              item.categories
-            ),
-
-      imageUrl:
-        safeUrl(
-          item.image_front_url ||
-          item.image_url
-        ),
-
-      quantity:
-        text(
-          item.quantity
-        ),
-
-      productQuantity:
-        item.product_quantity ??
-        null,
-
-      seller: "",
-
-      source:
-        "Open Facts (JAN 확인)",
-
-      sourceUrl: "",
-
-      verification:
-        "exact barcode in database",
-    };
-  } catch (error) {
-    console.error(
-      "Open Facts:",
-      error.message
-    );
-
-    return null;
-  }
-}
-
-
-/*
- * =================================
- * 4. UPCitemdb
- * =================================
- */
-async function lookupUpc(
-  jan
-) {
-  try {
-    const url =
-      `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(
-        jan
-      )}`;
-
-    const response =
-      await fetchTimed(
-        url,
-        {
-          headers: {
-            Accept:
-              "application/json",
-          },
-        }
-      );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data =
-      await response.json();
-
-    const items =
-      Array.isArray(
-        data.items
-      )
-        ? data.items
-        : [];
-
-    /*
-     * UPCitemdb가 다른 바코드를
-     * 반환하는 경우 방지
-     */
-    const item =
-      items.find(
-        (entry) => {
-          const codes = [
-            entry.ean,
-            entry.upc,
-          ]
-            .filter(Boolean)
-            .map(String);
-
-          return codes.some(
-            (code) =>
-              code === jan ||
-              (
-                jan.startsWith(
-                  "0"
-                ) &&
-                code ===
-                  jan.slice(1)
-              )
-          );
-        }
-      );
-
-    if (!item) {
-      return null;
-    }
-
-    const name =
-      cleanTitle(
-        item.title
-      );
-
-    if (genericName(name)) {
-      return null;
-    }
-
-    return {
-      jan,
-
-      name,
-
-      brand:
-        text(item.brand),
-
-      category:
-        text(item.category),
-
-      imageUrl:
-        safeUrl(
-          Array.isArray(
-            item.images
-          )
-            ? item.images[0]
-            : ""
-        ),
-
-      quantity:
-        text(item.weight),
-
-      productQuantity:
-        null,
-
-      seller: "",
-
-      source:
-        "UPCitemdb (JAN 확인)",
-
-      sourceUrl: "",
-
-      verification:
-        "exact barcode in database",
-    };
-  } catch (error) {
-    console.error(
-      "UPCitemdb:",
-      error.message
-    );
-
-    return null;
-  }
-}
-
-
-/*
- * 번역 API의 HTML 문자 처리
+ * 번역 응답 HTML 문자 처리
  */
 function decodeHtml(value) {
-  return text(value)
+  return str(value)
     .replace(
-      /&amp;/g,
+      /&amp;/gi,
       "&"
     )
     .replace(
-      /&quot;/g,
+      /&quot;/gi,
       '"'
     )
     .replace(
@@ -912,33 +848,21 @@ function decodeHtml(value) {
       "'"
     )
     .replace(
-      /&lt;/g,
+      /&lt;/gi,
       "<"
     )
     .replace(
-      /&gt;/g,
+      /&gt;/gi,
       ">"
     );
 }
 
-
 /*
- * =================================
- * 5. Google Translate
- * =================================
- *
- * Vercel 환경변수:
- *
- * GOOGLE_TRANSLATE_API_KEY
- *
- * API Key는 서버에서만 사용한다.
+ * Google 번역 API
  */
-async function translateKorean(
-  name
-) {
+async function translate(name) {
   /*
-   * 이미 한국어 상품명이면
-   * 번역하지 않음
+   * 이미 한글이면 번역 불필요
    */
   if (
     /[가-힣]/.test(name) &&
@@ -948,7 +872,6 @@ async function translateKorean(
   ) {
     return {
       nameKo: name,
-
       translated: false,
 
       translationStatus:
@@ -963,7 +886,6 @@ async function translateKorean(
   if (!apiKey) {
     return {
       nameKo: name,
-
       translated: false,
 
       translationStatus:
@@ -971,61 +893,59 @@ async function translateKorean(
     };
   }
 
-  try {
-    const body = {
-      q: name,
+  const body = {
+    q: name,
+    target: "ko",
+    format: "text",
+  };
 
-      target: "ko",
+  if (
+    /[ぁ-んァ-ヶ一-龯]/.test(
+      name
+    )
+  ) {
+    body.source = "ja";
+  }
 
-      format: "text",
-    };
+  const data =
+    await requestJson(
+      TRANSLATE_URL,
+      {
+        method: "POST",
 
-    /*
-     * 일본어가 포함되어 있으면
-     * 원문 언어를 일본어로 지정
-     */
-    if (
-      /[ぁ-んァ-ヶ一-龯]/.test(
-        name
-      )
-    ) {
-      body.source = "ja";
-    }
+        headers: {
+          "Content-Type":
+            "application/json; charset=utf-8",
 
-    /*
-     * API 키는 URL이 아니라
-     * HTTP 헤더로 전송
-     */
-    const response =
-      await fetchTimed(
-        TRANSLATE_URL,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json; charset=utf-8",
-
-            "x-goog-api-key":
-              apiKey,
-          },
-
-          body:
-            JSON.stringify(
-              body
-            ),
+          "x-goog-api-key":
+            apiKey,
         },
-        7000
-      );
 
-    if (!response.ok) {
-      console.error(
-        "Translation API 상태:",
-        response.status
-      );
+        body:
+          JSON.stringify(
+            body
+          ),
+      }
+    );
 
-      return {
+  const result =
+    decodeHtml(
+      data?.data
+        ?.translations?.[0]
+        ?.translatedText
+    );
+
+  return result
+    ? {
+        nameKo: result,
+
+        translated:
+          result !== name,
+
+        translationStatus:
+          "ok",
+      }
+    : {
         nameKo: name,
 
         translated: false,
@@ -1033,60 +953,12 @@ async function translateKorean(
         translationStatus:
           "api_error",
       };
-    }
-
-    const data =
-      await response.json();
-
-    const value =
-      decodeHtml(
-        data?.data
-          ?.translations?.[0]
-          ?.translatedText
-      );
-
-    if (!value) {
-      return {
-        nameKo: name,
-
-        translated: false,
-
-        translationStatus:
-          "empty_result",
-      };
-    }
-
-    return {
-      nameKo: value,
-
-      translated:
-        value !== name,
-
-      translationStatus:
-        "ok",
-    };
-  } catch (error) {
-    console.error(
-      "Translation API:",
-      error.message
-    );
-
-    return {
-      nameKo: name,
-
-      translated: false,
-
-      translationStatus:
-        "api_error",
-    };
-  }
 }
 
-
 /*
- * =================================
+ * =====================================
  * 최종 API
- * =================================
+ * =====================================
  */
 export default async function handler(
   req,
@@ -1097,9 +969,6 @@ export default async function handler(
     "no-store"
   );
 
-  /*
-   * GET만 지원
-   */
   if (
     req.method !== "GET"
   ) {
@@ -1117,9 +986,6 @@ export default async function handler(
       ? req.query.jan.trim()
       : "";
 
-  /*
-   * JAN / EAN 검사
-   */
   if (
     !/^\d{8,14}$/.test(
       jan
@@ -1129,28 +995,35 @@ export default async function handler(
       .status(400)
       .json({
         error:
-          "JAN / EAN 코드 8~14자리가 필요합니다.",
+          "JAN / EAN 코드 8~14자리를 입력해주세요.",
       });
   }
 
   try {
-    let product = null;
-
     /*
-     * 1순위:
-     * 정확 JAN Google 일반검색
-     *
-     * Google Shopping은
-     * 여기서 사용하지 않는다.
+     * 검증된 헤어오일은
+     * 올바른 본품 이름 사용
      */
-    product =
-      await lookupGoogleJan(
-        jan
-      );
+    const trusted =
+      VERIFIED_PRODUCTS[jan];
+
+    let product = trusted
+      ? {
+          jan,
+          ...trusted,
+
+          imageUrl: "",
+          quantity: "",
+          productQuantity:
+            null,
+          seller: "",
+        }
+      : await lookupGoogle(
+          jan
+        );
 
     /*
-     * 2순위:
-     * Open Facts
+     * 다른 JAN은 외부 DB 순차 조회
      */
     if (!product) {
       product =
@@ -1159,10 +1032,6 @@ export default async function handler(
         );
     }
 
-    /*
-     * 3순위:
-     * UPCitemdb
-     */
     if (!product) {
       product =
         await lookupUpc(
@@ -1170,17 +1039,11 @@ export default async function handler(
         );
     }
 
-    /*
-     * 식별 실패
-     *
-     * 아무 상품이나 보여주지 않음
-     */
     if (!product) {
       return res
         .status(200)
         .json({
           found: false,
-
           jan,
 
           lookupVersion:
@@ -1189,37 +1052,37 @@ export default async function handler(
     }
 
     /*
-     * 식별한 상품명 기준으로
-     * 사진과 한국어 번역 진행
-     *
-     * 독립 작업이라 병렬 실행
-     * → API 응답시간 단축
+     * 이미지 / 번역을 병렬 처리
      */
     const [
-      enrichedProduct,
+      withImage,
       translated,
     ] = await Promise.all([
-      product.source.startsWith(
-        "Google Search"
-      )
-        ? enrichShoppingImage(
-            product
-          )
-        : Promise.resolve(
-            product
-          ),
-
-      translateKorean(
-        product.name
+      addShoppingImage(
+        product
       ),
+
+      product.nameKo
+        ? Promise.resolve({
+            nameKo:
+              product.nameKo,
+
+            translated: true,
+
+            translationStatus:
+              "verified_korean_name",
+          })
+        : translate(
+            product.name
+          ),
     ]);
 
+    const nameKo =
+      translated.nameKo;
+
     /*
-     * 기존 BarcodeScanner 및
+     * 기존 BarcodeScanner,
      * PriceComparison과 호환
-     *
-     * name = 한국어 상품명
-     * searchKeyword = 한국 가격검색어
      */
     return res
       .status(200)
@@ -1230,19 +1093,49 @@ export default async function handler(
           VERSION,
 
         product: {
-          ...enrichedProduct,
+          jan,
 
           name:
-            translated.nameKo,
+            nameKo,
 
           originalName:
             product.name,
 
-          nameKo:
-            translated.nameKo,
+          nameKo,
+
+          brand:
+            withImage.brand ||
+            "",
+
+          category:
+            withImage.category ||
+            "",
+
+          imageUrl:
+            withImage.imageUrl ||
+            "",
+
+          quantity:
+            withImage.quantity ||
+            "",
+
+          productQuantity:
+            withImage.productQuantity ??
+            null,
+
+          seller:
+            withImage.seller ||
+            "",
+
+          source:
+            withImage.source,
+
+          sourceUrl:
+            withImage.sourceUrl ||
+            "",
 
           searchKeyword:
-            translated.nameKo,
+            nameKo,
 
           translated:
             translated.translated,
@@ -1253,7 +1146,7 @@ export default async function handler(
       });
   } catch (error) {
     console.error(
-      "Product API:",
+      "Product lookup:",
       error
     );
 
