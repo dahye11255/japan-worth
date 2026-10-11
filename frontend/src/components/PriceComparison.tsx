@@ -141,7 +141,7 @@ function PriceComparison({
         const response = await fetch(
           `/api/shopping?query=${encodeURIComponent(
             shoppingQuery
-          )}`
+            )}&jan=${encodeURIComponent(jan)}`
         );
 
         const data: ShoppingApiResponse =
