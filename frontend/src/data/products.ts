@@ -33,7 +33,8 @@ export const products = [
     brand: "BANDAI",
     searchKeyword: "주술회전 이타도리 피규어",
     weightGram: 20,
-    category: "stationery"
+    category: "stationery",
+    imageUrl: "/images/itadori-maximatic.jpg"
   }
 
 ];
