@@ -161,22 +161,6 @@ export const products: Product[] = [
   },
 
   {
-    jan: "4987241105052",
-    nameJa: "メンソレータム 薬用リップスティックXD 4g",
-    nameKo: "멘소래담 약용 립스틱 XD 4g",
-    brand: "ROHTO",
-    searchKeyword: "멘소래담 약용 립스틱 XD 4g",
-
-    weightGram: 4,
-    category: "beauty",
-
-    taxRate: 0.1,
-    taxFreeEligible: true,
-    taxCategory: "의약외품",
-    isAlcohol: false,
-  },
-
-  {
     jan: "4589546893308",
     nameJa: "アンドハニー ディープモイスト ヘアオイル3.0 つめかえ 75ml",
     nameKo: "앤드허니 딥모이스트 헤어오일 3.0 리필 75ml",
@@ -205,6 +189,8 @@ export const products: Product[] = [
     nameKo: "글리코 포키 초콜릿",
     brand: "Glico",
     searchKeyword: "글리코 포키 초콜릿",
+    
+    imageUrl: "/images/pockey.jpg",
 
     weightGram: 58,
     category: "food",
@@ -229,6 +215,7 @@ export const products: Product[] = [
     volumeMl: 500,
     alcoholPercent: 5,
     category: "alcohol",
+    imageUrl: "/images/santori.jpg",
 
     taxRate: 0.1,
     taxFreeEligible: true,
@@ -242,6 +229,8 @@ export const products: Product[] = [
     nameKo: "스피리터스 96도 500ml",
     brand: "POLMOS",
     searchKeyword: "스피리터스 96도 500ml",
+
+    imageUrl: "/images/spiritus.jpg",
 
     volumeMl: 500,
     alcoholPercent: 96,
