@@ -758,7 +758,7 @@ function PriceComparison({
                   )
                 }
               >
-                🛒 쿠팡에서 확인
+                🔎 Google에서 쿠팡 상품 찾기
               </button>
             </div>
 
