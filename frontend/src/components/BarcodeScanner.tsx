@@ -10,7 +10,9 @@ function BarcodeScanner() {
   const [barcode, setBarcode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
 
-  const matchedProduct = products.find((product) => product.jan === barcode);
+  const matchedProduct = products.find(
+    (product) => product.jan === barcode
+  );
 
   useEffect(() => {
     if (!isScanning || !videoRef.current) return;
@@ -37,9 +39,10 @@ function BarcodeScanner() {
 
               setBarcode(code);
               setIsScanning(false);
+
               controlsRef.current?.stop();
             }
-          },
+          }
         );
 
         controlsRef.current = controls;
@@ -57,16 +60,19 @@ function BarcodeScanner() {
     };
   }, [isScanning]);
 
+  const startScanning = () => {
+    setBarcode("");
+    setIsScanning(true);
+  };
+
   return (
     <div>
       <h2>상품 바코드 스캔</h2>
 
       {!isScanning && (
         <button
-          onClick={() => {
-            setBarcode("");
-            setIsScanning(true);
-          }}
+          type="button"
+          onClick={startScanning}
         >
           📷 바코드 스캔
         </button>
@@ -79,13 +85,11 @@ function BarcodeScanner() {
             autoPlay
             muted
             playsInline
-            style={{
-              width: "100%",
-              maxWidth: 500,
-            }}
           />
 
-          <p>바코드를 카메라에 보여주세요.</p>
+          <p>
+            바코드를 카메라에 보여주세요.
+          </p>
         </>
       )}
 
@@ -94,28 +98,52 @@ function BarcodeScanner() {
           <h3>✅ 바코드 인식 완료</h3>
 
           <p>JAN / EAN 코드</p>
+
           <strong>{barcode}</strong>
 
           {matchedProduct ? (
             <div>
-              <h3>{matchedProduct.nameKo}</h3>
+              <hr />
 
-              <p>{matchedProduct.nameJa}</p>
-
-              <p>브랜드: {matchedProduct.brand}</p>
+              <h3>
+                {matchedProduct.nameKo}
+              </h3>
 
               <p>
-                한국 가격: ₩{matchedProduct.koreaPrice.toLocaleString()}
+                {matchedProduct.nameJa}
+              </p>
+
+              <p>
+                브랜드:{" "}
+                <strong>
+                  {matchedProduct.brand}
+                </strong>
               </p>
 
               <PriceComparison
-                koreaPrice={matchedProduct.koreaPrice}
-                productName={matchedProduct.nameKo}
-                jan={matchedProduct.jan}
+                productName={
+                  matchedProduct.nameKo
+                }
+                jan={
+                  matchedProduct.jan
+                }
               />
             </div>
           ) : (
-            <p>등록되지 않은 상품입니다.</p>
+            <div>
+              <hr />
+
+              <p>
+                등록되지 않은 상품입니다.
+              </p>
+
+              <button
+                type="button"
+                onClick={startScanning}
+              >
+                다시 스캔하기
+              </button>
+            </div>
           )}
         </div>
       )}
