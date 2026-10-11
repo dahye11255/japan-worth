@@ -1,22 +1,17 @@
 /*
  * JapanWorth 상품 자동 조회 API
  *
- * 흐름
+ * 1. Google Shopping Japan
+ *    → JAN으로 일본 상품 식별
  *
- * JAN
- * ↓
- * Google Shopping Japan
- * → 상품명 / 사진 식별
+ * 2. Google Korea
+ *    → 같은 JAN이 실제로 확인되는
+ *      한국 판매 페이지가 있으면
+ *      한국어 상품명 획득
  *
- * ↓
- * 같은 JAN을 Google Korea 일반검색
- * → 한국에서 실제로 쓰는 상품명 탐색
- *
- * ↓
- * searchKeyword로 반환
- *
- * fallback:
- * Open Facts → UPCitemdb
+ * 3. fallback
+ *    → Open Facts
+ *    → UPCitemdb
  */
 
 function cleanText(value) {
@@ -35,65 +30,61 @@ function cleanProductTitle(title) {
     return "";
   }
 
-  // 【メール便】, 【送料無料】 등 제거
+  // 【送料無料】 등 제거
   text = text.replace(
     /【[^】]*】/g,
     " "
   );
 
-  // [送料無料] 형태 제거
+  // [送料無料] 등 제거
   text = text.replace(
     /\[[^\]]*\]/g,
     " "
   );
 
-  // 제목 앞 5個セット / 3個パック 제거
+  // 제목 앞의 5個セット 등 제거
   text = text.replace(
     /^\s*\d+\s*(個|本|袋|箱)\s*(セット|パック)\s*[\/／]?\s*/gi,
     ""
   );
 
-  // 제목 중간/뒤 5個パック 등 제거
+  // 중간의 5個パック 등 제거
   text = text.replace(
     /\d+\s*(個|本|袋|箱)\s*(セット|パック)/gi,
     " "
   );
 
-  // まとめ買い 제거
+  // 묶음구매 문구
   text = text.replace(
     /まとめ買い/gi,
     " "
   );
 
-  // 배송 관련 문구 제거
+  // 배송 관련
   text = text.replace(
     /(メール便|送料無料|送料込|送料込み)/gi,
     " "
   );
 
-  // /美容・健康>衛生日用品 같은 카테고리 제거
+  // /美容・健康>衛生日用品 같은 카테고리
   text = text.replace(
     /[\/／][^\/／]*>.*$/g,
     ""
   );
 
-  // | 뒤 쇼핑몰 문구 제거
+  // | 뒤 쇼핑몰 이름 등
   text = text.replace(
     /\|.*$/g,
     ""
   );
 
-  text = text
+  return text
     .replace(/\s+/g, " ")
     .trim();
-
-  return text;
 }
 
 /*
- * fallback 검색어 생성
- *
- * JAN은 넣지 않는다.
+ * fallback용 검색어
  */
 function buildSearchKeyword(
   name,
@@ -124,11 +115,12 @@ function buildSearchKeyword(
 }
 
 /*
- * 너무 일반적인 상품명인지 확인
+ * 너무 일반적인 상품명 제외
  */
 function isGenericProductName(name) {
   const normalized =
-    cleanText(name).toLowerCase();
+    cleanText(name)
+      .toLowerCase();
 
   const genericNames = [
     "lip balm",
@@ -184,35 +176,49 @@ function cleanKoreanTitle(title) {
     return "";
   }
 
-  // [쿠팡], [공식몰] 등 제거
+  // [공식몰], [쿠팡] 등
   text = text.replace(
     /\[[^\]]*\]/g,
     " "
   );
 
-  // 끝에 붙는 쇼핑몰 이름 제거
+  // 끝에 쇼핑몰명 제거
   text = text.replace(
     /\s*[-–—|:]\s*(쿠팡!?|네이버.*|G마켓.*|옥션.*|11번가.*|롯데ON.*|SSG.*)$/i,
     ""
   );
 
-  // "쿠팡!" 단독 꼬리 제거
   text = text.replace(
-    /\s*[-–—|]\s*쿠팡!?\s*$/i,
-    ""
+    /\s+/g,
+    " "
   );
 
-  text = text
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return text;
+  return text.trim();
 }
 
 /*
- * 한국 Google 검색 결과 점수
+ * 문자열 안에 정확한 JAN이 있는지
  */
-function scoreKoreanResult(
+function containsJan(
+  text,
+  jan
+) {
+  return cleanText(text)
+    .replace(/\s/g, "")
+    .includes(jan);
+}
+
+/*
+ * 한국 검색결과 검증
+ *
+ * 중요:
+ * 단순히 한글 제목이라는 이유만으로
+ * 절대 채택하지 않는다.
+ *
+ * 제목 또는 snippet 안에
+ * 동일한 JAN이 있어야 한다.
+ */
+function scoreVerifiedKoreanResult(
   result,
   jan
 ) {
@@ -221,12 +227,17 @@ function scoreKoreanResult(
       result?.title
     );
 
+  const snippet =
+    cleanText(
+      result?.snippet
+    );
+
   if (!title) {
     return -9999;
   }
 
   /*
-   * 한글이 없는 결과는 제외
+   * 한글 제목 필수
    */
   if (
     !/[가-힣]/.test(title)
@@ -234,71 +245,78 @@ function scoreKoreanResult(
     return -9999;
   }
 
-  let score = 0;
-
   /*
-   * 한글이 많이 포함될수록 가점
+   * 핵심:
+   * JAN이 검색결과에 실제로 있어야 함
    */
-  const koreanChars =
-    title.match(
-      /[가-힣]/g
-    ) ?? [];
+  const janVerified =
+    containsJan(
+      title,
+      jan
+    ) ||
+    containsJan(
+      snippet,
+      jan
+    );
 
-  score +=
-    koreanChars.length;
-
-  /*
-   * JAN이 제목에도 있으면
-   * 동일 상품일 가능성 높음
-   */
-  if (
-    title.includes(jan)
-  ) {
-    score += 20;
+  if (!janVerified) {
+    return -9999;
   }
+
+  let score = 100;
 
   const link =
     cleanText(
       result?.link
-    ).toLowerCase();
+    )
+      .toLowerCase();
 
   /*
-   * 한국 쇼핑몰 결과 가점
+   * 한국 쇼핑몰이면 가점
    */
   if (
-    /coupang|naver|gmarket|auction|11st|lotte|ssg|shopping/.test(
+    /coupang|naver|smartstore|gmarket|auction|11st|lotte|ssg/.test(
       link
     )
   ) {
-    score += 15;
+    score += 30;
   }
 
   /*
-   * 바코드 DB 사이트 같은 결과는 감점
+   * JAN이 제목에 직접 있으면 더 확실
    */
   if (
-    /(바코드|barcode|ean|jan 코드|상품정보조회)/i.test(
+    containsJan(
+      title,
+      jan
+    )
+  ) {
+    score += 20;
+  }
+
+  /*
+   * 바코드 조회 사이트는 감점
+   */
+  if (
+    /(바코드|barcode|상품코드|ean|jan 코드)/i.test(
       title
     )
   ) {
-    score -= 15;
+    score -= 40;
   }
 
   if (
     title.length > 120
   ) {
-    score -= 10;
+    score -= 15;
   }
 
   return score;
 }
 
 /*
- * 같은 JAN으로 한국 웹 검색
- *
- * 일본어 상품명이 아니라
- * 실제 한국 판매자가 사용하는
- * 한국어 상품명을 얻기 위한 단계
+ * 같은 JAN을 한국 Google에서 검색해서
+ * 실제 한국 상품명 찾기
  */
 async function findKoreanSearchKeyword(
   jan,
@@ -310,8 +328,8 @@ async function findKoreanSearchKeyword(
     );
 
   /*
-   * 이미 한글이면
-   * 추가 API 요청하지 않음
+   * 원래 상품명이 이미 한글이면
+   * 추가 호출 불필요
    */
   if (
     /[가-힣]/.test(
@@ -330,16 +348,22 @@ async function findKoreanSearchKeyword(
   }
 
   try {
+    /*
+     * 따옴표로 JAN 정확검색
+     */
     const params =
       new URLSearchParams({
         engine:
           "google",
 
-        q: jan,
+        q:
+          `"${jan}"`,
 
-        gl: "kr",
+        gl:
+          "kr",
 
-        hl: "ko",
+        hl:
+          "ko",
 
         api_key:
           apiKey,
@@ -380,22 +404,22 @@ async function findKoreanSearchKeyword(
     }
 
     /*
-     * 한국어 결과 중
-     * 가장 점수가 높은 결과 선택
+     * JAN 검증 통과한 결과만 남김
      */
-    const ranked =
+    const verifiedResults =
       results
         .map((result) => ({
           result,
+
           score:
-            scoreKoreanResult(
+            scoreVerifiedKoreanResult(
               result,
               jan
             ),
         }))
         .filter(
           (item) =>
-            item.score > -9999
+            item.score >= 0
         )
         .sort(
           (a, b) =>
@@ -403,32 +427,40 @@ async function findKoreanSearchKeyword(
             a.score
         );
 
+    /*
+     * 정확한 결과가 없으면
+     * 엉뚱한 한글 검색어를 만들지 않는다.
+     */
     if (
-      ranked.length === 0
+      verifiedResults.length ===
+      0
     ) {
+      console.log(
+        "한국 JAN 검색결과 없음:",
+        jan
+      );
+
       return fallback;
     }
 
     const keyword =
       cleanKoreanTitle(
-        ranked[0]
+        verifiedResults[0]
           .result
           .title
       );
 
-    if (!keyword) {
-      return fallback;
-    }
-
-    /*
-     * 지나치게 긴 검색어는
-     * 한국 쇼핑 검색에 방해가 됨
-     */
     if (
-      keyword.length > 100
+      !keyword ||
+      keyword.length > 120
     ) {
       return fallback;
     }
+
+    console.log(
+      "한국 상품명 발견:",
+      keyword
+    );
 
     return keyword;
   } catch (error) {
@@ -442,10 +474,9 @@ async function findKoreanSearchKeyword(
 }
 
 /*
- * 일본 Google Shopping 검색 결과 점수
+ * 일본 Google Shopping 결과 순위
  *
- * 여러 개 세트보다는
- * 단품 결과를 우선한다.
+ * 세트상품보다 단품 우선
  */
 function scoreShoppingResult(
   result
@@ -517,11 +548,14 @@ async function searchGoogleShoppingJapan(
         engine:
           "google_shopping",
 
-        q: jan,
+        q:
+          jan,
 
-        gl: "jp",
+        gl:
+          "jp",
 
-        hl: "ja",
+        hl:
+          "ja",
 
         google_domain:
           "google.co.jp",
@@ -570,18 +604,19 @@ async function searchGoogleShoppingJapan(
     }
 
     /*
-     * 세트상품을 뒤로 보내기
+     * 단품에 가까운 결과 우선
      */
     const sortedResults =
-      [...results].sort(
-        (a, b) =>
-          scoreShoppingResult(
-            a
-          ) -
-          scoreShoppingResult(
-            b
-          )
-      );
+      [...results]
+        .sort(
+          (a, b) =>
+            scoreShoppingResult(
+              a
+            ) -
+            scoreShoppingResult(
+              b
+            )
+        );
 
     const item =
       sortedResults.find(
@@ -610,8 +645,8 @@ async function searchGoogleShoppingJapan(
     }
 
     /*
-     * 여기서 같은 JAN을
-     * 한국 Google에 검색
+     * 같은 JAN으로
+     * 한국 상품명 탐색
      */
     const koreanSearchKeyword =
       await findKoreanSearchKeyword(
@@ -630,19 +665,18 @@ async function searchGoogleShoppingJapan(
     return {
       jan,
 
-      /*
-       * 화면에는 일본에서 찾은
-       * 정확한 상품명 표시
-       */
       name,
 
-      brand: "",
+      brand:
+        "",
 
-      category: "",
+      category:
+        "",
 
       imageUrl,
 
-      quantity: "",
+      quantity:
+        "",
 
       productQuantity:
         null,
@@ -664,9 +698,7 @@ async function searchGoogleShoppingJapan(
         ),
 
       /*
-       * 한국 가격검색에는
-       * 한국 Google에서 찾은
-       * 한국어 이름 사용
+       * 한국 가격 검색용
        */
       searchKeyword:
         koreanSearchKeyword,
@@ -732,11 +764,6 @@ async function searchOpenFacts(
     }
 
     if (!response.ok) {
-      console.error(
-        "Open Facts 오류:",
-        response.status
-      );
-
       return null;
     }
 
@@ -828,12 +855,14 @@ async function searchOpenFacts(
         item.product_quantity ??
         null,
 
-      seller: "",
+      seller:
+        "",
 
       source:
         "Open Facts",
 
-      sourceUrl: "",
+      sourceUrl:
+        "",
 
       searchKeyword:
         koreanSearchKeyword,
@@ -873,27 +902,13 @@ async function searchUpcItemDb(
       );
 
     if (
-      response.status === 429
-    ) {
-      console.error(
-        "UPCitemdb 조회 제한 초과"
-      );
-
-      return null;
-    }
-
-    if (
+      response.status === 429 ||
       response.status === 404
     ) {
       return null;
     }
 
     if (!response.ok) {
-      console.error(
-        "UPCitemdb 오류:",
-        response.status
-      );
-
       return null;
     }
 
@@ -987,12 +1002,14 @@ async function searchUpcItemDb(
       productQuantity:
         null,
 
-      seller: "",
+      seller:
+        "",
 
       source:
         "UPCitemdb",
 
-      sourceUrl: "",
+      sourceUrl:
+        "",
 
       searchKeyword:
         koreanSearchKeyword,
@@ -1007,6 +1024,9 @@ async function searchUpcItemDb(
   }
 }
 
+/*
+ * API handler
+ */
 export default async function handler(
   req,
   res
@@ -1051,8 +1071,7 @@ export default async function handler(
   }
 
   /*
-   * 지금은 개발 중이므로
-   * 예전 검색어가 캐시에 남지 않게 한다.
+   * 개발 중에는 캐시 X
    */
   res.setHeader(
     "Cache-Control",
@@ -1062,7 +1081,7 @@ export default async function handler(
   try {
     /*
      * 1순위
-     * 일본 Google Shopping
+     * Google Shopping Japan
      */
     const googleProduct =
       await searchGoogleShoppingJapan(
@@ -1076,6 +1095,7 @@ export default async function handler(
         .status(200)
         .json({
           found: true,
+
           product:
             googleProduct,
         });
@@ -1097,6 +1117,7 @@ export default async function handler(
         .status(200)
         .json({
           found: true,
+
           product:
             openFactsProduct,
         });
@@ -1118,6 +1139,7 @@ export default async function handler(
         .status(200)
         .json({
           found: true,
+
           product:
             upcProduct,
         });
