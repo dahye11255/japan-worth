@@ -12,6 +12,20 @@ interface ExchangeRateResponse {
   rate: number;
 }
 
+interface ShoppingResult {
+  title: string;
+  source: string;
+  price: string;
+  extractedPrice: number;
+  link: string;
+  thumbnail: string;
+}
+
+interface ShoppingApiResponse {
+  results?: ShoppingResult[];
+  error?: string;
+}
+
 interface CartItem {
   jan: string;
   productName: string;
@@ -29,7 +43,6 @@ function PriceComparison({
   jan,
 }: PriceComparisonProps) {
   const [japanPrice, setJapanPrice] = useState("");
-  const [koreaPrice, setKoreaPrice] = useState("");
 
   const [yenToKrw, setYenToKrw] =
     useState(FALLBACK_YEN_TO_KRW);
@@ -43,6 +56,26 @@ function PriceComparison({
   const [exchangeDate, setExchangeDate] =
     useState("");
 
+  // 한국 쇼핑 검색
+  const [shoppingResults, setShoppingResults] =
+    useState<ShoppingResult[]>([]);
+
+  const [shoppingLoading, setShoppingLoading] =
+    useState(true);
+
+  const [shoppingError, setShoppingError] =
+    useState("");
+
+  const [selectedResult, setSelectedResult] =
+    useState<ShoppingResult | null>(null);
+
+  // 검색 실패 시 직접 입력용
+  const [manualKoreaPrice, setManualKoreaPrice] =
+    useState("");
+
+  /*
+   * 환율 조회
+   */
   useEffect(() => {
     const fetchExchangeRate = async () => {
       try {
@@ -74,15 +107,9 @@ function PriceComparison({
         setYenToKrw(data.rate);
         setExchangeDate(data.date);
       } catch (error) {
-        console.error(
-          "환율 API 오류:",
-          error
-        );
+        console.error("환율 API 오류:", error);
 
-        setYenToKrw(
-          FALLBACK_YEN_TO_KRW
-        );
-
+        setYenToKrw(FALLBACK_YEN_TO_KRW);
         setExchangeError(true);
       } finally {
         setExchangeLoading(false);
@@ -92,11 +119,69 @@ function PriceComparison({
     fetchExchangeRate();
   }, []);
 
+  /*
+   * Google Shopping 자동 검색
+   */
+  useEffect(() => {
+    const fetchShoppingResults = async () => {
+      try {
+        setShoppingLoading(true);
+        setShoppingError("");
+        setShoppingResults([]);
+        setSelectedResult(null);
+        setManualKoreaPrice("");
+
+        const response = await fetch(
+          `/api/shopping?query=${encodeURIComponent(
+            productName
+          )}`
+        );
+
+        const data: ShoppingApiResponse =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ??
+              `쇼핑 검색 실패: ${response.status}`
+          );
+        }
+
+        const results = data.results ?? [];
+
+        if (results.length === 0) {
+          throw new Error(
+            "한국 판매 상품을 찾지 못했습니다."
+          );
+        }
+
+        setShoppingResults(results);
+
+        // 가장 관련도가 높은 첫 번째 결과를 기본 선택
+        setSelectedResult(results[0]);
+      } catch (error) {
+        console.error(
+          "한국 쇼핑 검색 오류:",
+          error
+        );
+
+        setShoppingError(
+          error instanceof Error
+            ? error.message
+            : "한국 판매가 검색에 실패했습니다."
+        );
+      } finally {
+        setShoppingLoading(false);
+      }
+    };
+
+    if (productName) {
+      fetchShoppingResults();
+    }
+  }, [productName]);
+
   const japanPriceNumber =
     Number(japanPrice);
-
-  const koreaPriceNumber =
-    Number(koreaPrice);
 
   const japanPriceKrw =
     japanPriceNumber > 0
@@ -104,6 +189,17 @@ function PriceComparison({
           japanPriceNumber * yenToKrw
         )
       : 0;
+
+  /*
+   * Google Shopping 결과가 있으면 자동 가격 사용
+   * 실패했다면 직접 입력한 가격 사용
+   */
+  const koreaPriceNumber =
+    selectedResult
+      ? Math.round(
+          selectedResult.extractedPrice
+        )
+      : Number(manualKoreaPrice);
 
   const saving =
     japanPriceKrw > 0 &&
@@ -120,6 +216,9 @@ function PriceComparison({
         100
       : 0;
 
+  /*
+   * fallback 사이트
+   */
   const encodedProductName =
     encodeURIComponent(productName);
 
@@ -139,6 +238,9 @@ function PriceComparison({
     );
   };
 
+  /*
+   * 장바구니
+   */
   const addToCart = () => {
     if (japanPriceNumber <= 0) {
       alert(
@@ -149,7 +251,7 @@ function PriceComparison({
 
     if (koreaPriceNumber <= 0) {
       alert(
-        "한국 가격을 입력해주세요."
+        "한국 판매가를 확인해주세요."
       );
       return;
     }
@@ -219,20 +321,18 @@ function PriceComparison({
         일본 현지 가격 (엔)
       </label>
 
-      <div>
-        <input
-          id="japan-price"
-          type="number"
-          min="0"
-          value={japanPrice}
-          onChange={(e) =>
-            setJapanPrice(
-              e.target.value
-            )
-          }
-          placeholder="예: 1045"
-        />
-      </div>
+      <input
+        id="japan-price"
+        type="number"
+        min="0"
+        value={japanPrice}
+        onChange={(e) =>
+          setJapanPrice(
+            e.target.value
+          )
+        }
+        placeholder="예: 1045"
+      />
 
       {exchangeLoading ? (
         <p>
@@ -267,7 +367,7 @@ function PriceComparison({
       {japanPriceNumber > 0 &&
         !exchangeLoading && (
           <p>
-            일본 예상 가격:{" "}
+            🇯🇵 일본 예상 가격:{" "}
             <strong>
               ₩
               {japanPriceKrw.toLocaleString()}
@@ -277,69 +377,246 @@ function PriceComparison({
 
       <hr />
 
-      {/* 한국 가격 */}
+      {/* 한국 쇼핑 자동 검색 */}
 
       <h3>
-        🇰🇷 한국 판매가 확인
+        🇰🇷 한국 온라인 판매가
       </h3>
 
-      <p>
-        현재 판매 중인 한국 가격을
-        확인해보세요.
-      </p>
+      {shoppingLoading && (
+        <p>
+          한국 판매 상품을 자동으로
+          찾는 중...
+        </p>
+      )}
 
-      <div
-        style={{
-          display: "grid",
-          gap: "10px",
-          marginBottom: "18px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() =>
-            openShoppingSite(
-              naverShoppingUrl
-            )
-          }
-        >
-          🟢 네이버쇼핑에서 보기
-        </button>
+      {!shoppingLoading &&
+        shoppingResults.length >
+          0 && (
+          <>
+            <p>
+              검색 결과 중 동일한
+              상품인지 확인해주세요.
+            </p>
 
-        <button
-          type="button"
-          onClick={() =>
-            openShoppingSite(
-              coupangUrl
-            )
-          }
-        >
-          🛒 쿠팡에서 보기
-        </button>
-      </div>
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
+              }}
+            >
+              {shoppingResults.map(
+                (result, index) => {
+                  const isSelected =
+                    selectedResult ===
+                    result;
 
-      <label htmlFor="korea-price">
-        한국에서 확인한 가격 (원)
-      </label>
+                  return (
+                    <div
+                      key={`${result.title}-${index}`}
+                      style={{
+                        padding:
+                          "14px",
+                        border:
+                          isSelected
+                            ? "2px solid #111827"
+                            : "1px solid #d0d5dd",
+                        borderRadius:
+                          "14px",
+                        background:
+                          "#ffffff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display:
+                            "flex",
+                          gap: "12px",
+                        }}
+                      >
+                        {result.thumbnail && (
+                          <img
+                            src={
+                              result.thumbnail
+                            }
+                            alt={
+                              result.title
+                            }
+                            style={{
+                              width:
+                                "70px",
+                              height:
+                                "70px",
+                              objectFit:
+                                "contain",
+                              borderRadius:
+                                "8px",
+                            }}
+                          />
+                        )}
 
-      <input
-        id="korea-price"
-        type="number"
-        min="0"
-        value={koreaPrice}
-        onChange={(e) =>
-          setKoreaPrice(
-            e.target.value
-          )
-        }
-        placeholder="예: 12000"
-      />
+                        <div
+                          style={{
+                            flex: 1,
+                          }}
+                        >
+                          <strong>
+                            {
+                              result.title
+                            }
+                          </strong>
 
-      <small>
-        네이버쇼핑 또는 쿠팡에서
-        확인한 현재 판매가를
-        입력해주세요.
-      </small>
+                          <p>
+                            판매처:{" "}
+                            {
+                              result.source
+                            }
+                          </p>
+
+                          <p>
+                            <strong>
+                              ₩
+                              {Math.round(
+                                result.extractedPrice
+                              ).toLocaleString()}
+                            </strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display:
+                            "grid",
+                          gap: "8px",
+                          marginTop:
+                            "10px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedResult(
+                              result
+                            )
+                          }
+                        >
+                          {isSelected
+                            ? "✅ 선택된 상품"
+                            : "이 상품 가격으로 비교"}
+                        </button>
+
+                        {result.link && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openShoppingSite(
+                                result.link
+                              )
+                            }
+                          >
+                            🔗 판매 페이지 보기
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          </>
+        )}
+
+      {/* 자동검색 실패 fallback */}
+
+      {!shoppingLoading &&
+        shoppingError && (
+          <div>
+            <p>
+              ⚠️ {shoppingError}
+            </p>
+
+            <p>
+              직접 한국 판매가를
+              확인해주세요.
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                marginBottom:
+                  "18px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  openShoppingSite(
+                    naverShoppingUrl
+                  )
+                }
+              >
+                🟢 네이버쇼핑에서
+                확인
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openShoppingSite(
+                    coupangUrl
+                  )
+                }
+              >
+                🛒 쿠팡에서 확인
+              </button>
+            </div>
+
+            <label htmlFor="manual-korea-price">
+              한국에서 확인한 가격
+              (원)
+            </label>
+
+            <input
+              id="manual-korea-price"
+              type="number"
+              min="0"
+              value={
+                manualKoreaPrice
+              }
+              onChange={(e) =>
+                setManualKoreaPrice(
+                  e.target.value
+                )
+              }
+              placeholder="예: 12000"
+            />
+          </div>
+        )}
+
+      {/* 선택된 한국 가격 */}
+
+      {koreaPriceNumber > 0 && (
+        <>
+          <hr />
+
+          <p>
+            🇰🇷 비교할 한국 가격:{" "}
+            <strong>
+              ₩
+              {koreaPriceNumber.toLocaleString()}
+            </strong>
+          </p>
+
+          {selectedResult && (
+            <small>
+              {selectedResult.source} /{" "}
+              {selectedResult.title}
+            </small>
+          )}
+        </>
+      )}
 
       {/* 비교 결과 */}
 
@@ -360,7 +637,7 @@ function PriceComparison({
             </p>
 
             <p>
-              🇰🇷 한국 구매 가격:{" "}
+              🇰🇷 한국 구매 예상:{" "}
               <strong>
                 ₩
                 {koreaPriceNumber.toLocaleString()}
@@ -409,9 +686,9 @@ function PriceComparison({
                 </h3>
 
                 <p>
-                  편의성과 수하물 공간을
-                  고려해 구매처를
-                  선택하세요.
+                  편의성과 수하물
+                  공간을 고려해
+                  구매처를 선택하세요.
                 </p>
               </div>
             )}
