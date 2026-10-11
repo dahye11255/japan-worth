@@ -384,7 +384,76 @@ function BarcodeScanner() {
                     "정보 없음"}
                 </strong>
               </p>
+              
+              <div
+                style={{
+                  marginTop: "14px",
+                  marginBottom: "18px",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  background:
+                    matchedProduct.taxFreeEligible
+                      ? "#ecfdf3"
+                      : "#fff7ed",
+                  border:
+                    matchedProduct.taxFreeEligible
+                      ? "1px solid #a7f3d0"
+                      : "1px solid #fed7aa",
+                }}
+              >
+                <strong>
+                  {matchedProduct.taxFreeEligible
+                    ? "✅ 면세 가능 상품"
+                    : "⚠️ 면세 제외 상품"}
+                </strong>
 
+                <p
+                  style={{
+                    margin: "8px 0 4px",
+                  }}
+                >
+                  상품 분류:{" "}
+                  {matchedProduct.taxCategory}
+                </p>
+
+                <p
+                  style={{
+                    margin: "4px 0",
+                  }}
+                >
+                  소비세율:{" "}
+                  <strong>
+                    {Math.round(
+                      matchedProduct.taxRate * 100
+                    )}
+                    %
+                  </strong>
+                </p>
+
+                {matchedProduct.isAlcohol && (
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      fontWeight: 700,
+                    }}
+                  >
+                    🍶 주류 상품입니다.
+                  </p>
+                )}
+
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: "12px",
+                    color: "#667085",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  ※ 실제 면세 환급은 Tax-Free
+                  매장 여부와 구매 금액 등
+                  환급 조건을 충족해야 합니다.
+                </p>
+              </div>
               <PriceComparison
                 productName={
                   matchedProduct.nameKo ??
