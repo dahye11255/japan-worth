@@ -463,9 +463,13 @@ function BarcodeScanner() {
                 searchKeyword={
                   matchedProduct.searchKeyword
                 }
-                jan={
-                  matchedProduct.jan
-                }
+                  jan={matchedProduct.jan}
+                  taxRate={
+                    matchedProduct.taxRate
+                  }
+                  taxFreeEligible={
+                    matchedProduct.taxFreeEligible
+                  }
               />
             </div>
           ) : (
