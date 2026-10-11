@@ -767,34 +767,82 @@ function BarcodeScanner() {
                   </strong>
                 </p>
 
-                {matchedProduct
-                  .isAlcohol && (
+
+
+                {matchedProduct.isAlcohol && (
                   <p
                     style={{
-                      margin:
-                        "8px 0 0",
-
-                      fontWeight:
-                        700,
+                      margin: "8px 0 0",
+                      fontWeight: 700,
                     }}
                   >
                     🍶 주류 상품입니다.
                   </p>
                 )}
 
+                {/* 항공기 수하물 반입 안내 */}
+                {matchedProduct.isAlcohol &&
+                typeof matchedProduct.alcoholPercent === "number" &&
+                matchedProduct.alcoholPercent > 70 ? (
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "14px",
+                      background: "#fef2f2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <strong>
+                      🚫 기내·위탁수하물 모두 반입 불가
+                    </strong>
+
+                    <p style={{ margin: "8px 0 0" }}>
+                      알코올 도수 {matchedProduct.alcoholPercent}%로
+                      항공기 운송이 금지되는 상품입니다.
+                    </p>
+                  </div>
+                ) : typeof matchedProduct.volumeMl === "number" &&
+                  matchedProduct.volumeMl > 100 ? (
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "14px",
+                      background: "#fff7ed",
+                      border: "1px solid #fdba74",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <strong>
+                      ⚠️ 기내 반입 제한 · 위탁수하물 권장
+                    </strong>
+
+                    <p style={{ margin: "8px 0" }}>
+                      이 상품은 {matchedProduct.volumeMl}mL 액체류입니다.
+                      일반적인 국제선 기내 반입 기준인
+                      100mL를 초과하므로 부치는 캐리어에 넣으세요.
+                    </p>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "12px",
+                        color: "#7c2d12",
+                      }}
+                    >
+                      ※ 보안검색 후 구매한 면세품은 예외가
+                      있을 수 있으며, 항공사와 경유지
+                      규정을 확인하세요.
+                    </p>
+                  </div>
+                ) : null}
+
                 <p
                   style={{
-                    margin:
-                      "10px 0 0",
-
-                    fontSize:
-                      "12px",
-
-                    color:
-                      "#667085",
-
-                    lineHeight:
-                      1.5,
+                    margin: "10px 0 0",
+                    fontSize: "12px",
+                    color: "#667085",
+                    lineHeight: 1.5,
                   }}
                 >
                   ※ 실제 면세 환급은
@@ -806,30 +854,26 @@ function BarcodeScanner() {
 
               <PriceComparison
                 productName={
-                  matchedProduct
-                    .nameKo ??
-                  matchedProduct
-                    .nameJa ??
+                  matchedProduct.nameKo ??
+                  matchedProduct.nameJa ??
                   "상품명 없음"
                 }
                 searchKeyword={
-                  matchedProduct
-                    .searchKeyword
+                  matchedProduct.searchKeyword
                 }
                 jan={
-                  matchedProduct
-                    .jan
+                  matchedProduct.jan
                 }
                 taxRate={
-                  matchedProduct
-                    .taxRate
+                  matchedProduct.taxRate
                 }
                 taxFreeEligible={
-                  matchedProduct
-                    .taxFreeEligible
+                  matchedProduct.taxFreeEligible
                 }
               />
             </div>
+
+
           ) : externalLoading ? (
             /*
              * 외부 상품 검색 중
