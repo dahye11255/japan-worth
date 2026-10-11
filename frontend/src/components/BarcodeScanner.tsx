@@ -1,17 +1,35 @@
-import { BrowserMultiFormatReader } from "@zxing/browser";
-import { useEffect, useRef, useState } from "react";
-import { products } from "../data/products";
-import PriceComparison from "./PriceComparison";
+import {
+  BrowserMultiFormatReader,
+} from "@zxing/browser";
+
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  products,
+} from "../data/products";
+
+import PriceComparison
+  from "./PriceComparison";
 
 interface ExternalProduct {
   jan: string;
+
   name: string;
+
   brand: string;
+
   category: string;
+
   imageUrl: string;
 
   quantity?: string;
-  productQuantity?: number | null;
+
+  productQuantity?:
+    number | null;
 
   searchKeyword?: string;
 
@@ -20,31 +38,57 @@ interface ExternalProduct {
 
 interface ProductApiResponse {
   found?: boolean;
+
   product?: ExternalProduct;
+
   error?: string;
 }
 
 function BarcodeScanner() {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef =
+    useRef<HTMLVideoElement>(
+      null
+    );
 
   const controlsRef =
-    useRef<{ stop: () => void } | null>(null);
+    useRef<{
+      stop: () => void;
+    } | null>(null);
 
-  const [barcode, setBarcode] = useState("");
-  const [manualBarcode, setManualBarcode] = useState("");
-  const [isScanning, setIsScanning] = useState(false);
+  const [
+    barcode,
+    setBarcode,
+  ] = useState("");
 
-  // 카메라가 5초 동안 인식하지 못했을 때
+  const [
+    manualBarcode,
+    setManualBarcode,
+  ] = useState("");
+
+  const [
+    isScanning,
+    setIsScanning,
+  ] = useState(false);
+
+  /*
+   * 5초 동안 바코드가
+   * 인식되지 않았을 때
+   */
   const [
     showManualBarcodeInput,
     setShowManualBarcodeInput,
   ] = useState(false);
 
-  // 외부 DB 상품
+  /*
+   * 외부 DB 상품
+   */
   const [
     externalProduct,
     setExternalProduct,
-  ] = useState<ExternalProduct | null>(null);
+  ] =
+    useState<ExternalProduct | null>(
+      null
+    );
 
   const [
     externalLoading,
@@ -56,7 +100,10 @@ function BarcodeScanner() {
     setExternalChecked,
   ] = useState(false);
 
-  // 외부 DB에서도 못 찾았을 때
+  /*
+   * 외부 DB에서도
+   * 찾지 못한 경우
+   */
   const [
     manualProductName,
     setManualProductName,
@@ -68,98 +115,149 @@ function BarcodeScanner() {
   ] = useState(false);
 
   /*
-   * 우리가 직접 등록한 상품
+   * JapanWorth에 직접
+   * 등록해 둔 상품
    */
-  const matchedProduct = products.find(
-    (product) => product.jan === barcode
-  );
+  const matchedProduct =
+    products.find(
+      (product) =>
+        product.jan ===
+        barcode
+    );
 
   /*
    * 카메라 스캔
    */
   useEffect(() => {
-    if (!isScanning || !videoRef.current) {
+    if (
+      !isScanning ||
+      !videoRef.current
+    ) {
       return;
     }
 
     const reader =
       new BrowserMultiFormatReader();
 
+    /*
+     * 5초 후
+     * 직접 입력창 표시
+     */
     const timeoutId =
-      window.setTimeout(() => {
-        setShowManualBarcodeInput(true);
-      }, 5000);
+      window.setTimeout(
+        () => {
+          setShowManualBarcodeInput(
+            true
+          );
+        },
+        5000
+      );
 
-    const startScanner = async () => {
-      try {
-        const controls =
-          await reader.decodeFromConstraints(
-            {
-              audio: false,
+    const startScanner =
+      async () => {
+        try {
+          const controls =
+            await reader
+              .decodeFromConstraints(
+                {
+                  audio: false,
 
-              video: {
-                facingMode: {
-                  ideal: "environment",
+                  video: {
+                    facingMode: {
+                      ideal:
+                        "environment",
+                    },
+
+                    width: {
+                      ideal: 1280,
+                    },
+
+                    height: {
+                      ideal: 720,
+                    },
+                  },
                 },
 
-                width: {
-                  ideal: 1280,
-                },
+                videoRef.current!,
 
-                height: {
-                  ideal: 720,
-                },
-              },
-            },
+                (result) => {
+                  if (!result) {
+                    return;
+                  }
 
-            videoRef.current!,
+                  const code =
+                    result
+                      .getText();
 
-            (result) => {
-              if (!result) {
-                return;
-              }
+                  console.log(
+                    "인식된 바코드:",
+                    code
+                  );
 
-              const code =
-                result.getText();
+                  window
+                    .clearTimeout(
+                      timeoutId
+                    );
 
-              console.log(
-                "인식된 바코드:",
-                code
+                  setBarcode(
+                    code
+                  );
+
+                  setManualBarcode(
+                    ""
+                  );
+
+                  setExternalProduct(
+                    null
+                  );
+
+                  setExternalLoading(
+                    false
+                  );
+
+                  setExternalChecked(
+                    false
+                  );
+
+                  setManualProductName(
+                    ""
+                  );
+
+                  setManualProductConfirmed(
+                    false
+                  );
+
+                  setShowManualBarcodeInput(
+                    false
+                  );
+
+                  setIsScanning(
+                    false
+                  );
+
+                  controlsRef
+                    .current
+                    ?.stop();
+                }
               );
 
-              window.clearTimeout(
-                timeoutId
-              );
-
-              setBarcode(code);
-              setManualBarcode("");
-
-              setExternalProduct(null);
-              setExternalChecked(false);
-
-              setManualProductName("");
-              setManualProductConfirmed(false);
-
-              setShowManualBarcodeInput(false);
-
-              setIsScanning(false);
-
-              controlsRef.current?.stop();
-            }
+          controlsRef.current =
+            controls;
+        } catch (error) {
+          console.error(
+            "카메라 실행 오류:",
+            error
           );
 
-        controlsRef.current =
-          controls;
-      } catch (error) {
-        console.error(
-          "카메라 실행 오류:",
-          error
-        );
+          setShowManualBarcodeInput(
+            true
+          );
 
-        setShowManualBarcodeInput(true);
-        setIsScanning(false);
-      }
-    };
+          setIsScanning(
+            false
+          );
+        }
+      };
 
     startScanner();
 
@@ -168,32 +266,54 @@ function BarcodeScanner() {
         timeoutId
       );
 
-      controlsRef.current?.stop();
-      controlsRef.current = null;
+      controlsRef
+        .current
+        ?.stop();
+
+      controlsRef.current =
+        null;
     };
-  }, [isScanning]);
+  }, [
+    isScanning,
+  ]);
 
   /*
-   * 등록되지 않은 JAN이면
-   * 외부 상품 DB 자동 검색
+   * products.ts에 없는 JAN은
+   * /api/product 자동 조회
    */
   useEffect(() => {
     if (!barcode) {
-      setExternalProduct(null);
-      setExternalLoading(false);
-      setExternalChecked(false);
+      setExternalProduct(
+        null
+      );
+
+      setExternalLoading(
+        false
+      );
+
+      setExternalChecked(
+        false
+      );
 
       return;
     }
 
     /*
-     * products.ts에 이미 등록된 상품이면
-     * 외부 DB 조회하지 않음
+     * 직접 등록한 상품이면
+     * 외부 API를 호출하지 않음
      */
     if (matchedProduct) {
-      setExternalProduct(null);
-      setExternalLoading(false);
-      setExternalChecked(true);
+      setExternalProduct(
+        null
+      );
+
+      setExternalLoading(
+        false
+      );
+
+      setExternalChecked(
+        true
+      );
 
       return;
     }
@@ -201,9 +321,17 @@ function BarcodeScanner() {
     const fetchExternalProduct =
       async () => {
         try {
-          setExternalLoading(true);
-          setExternalChecked(false);
-          setExternalProduct(null);
+          setExternalLoading(
+            true
+          );
+
+          setExternalChecked(
+            false
+          );
+
+          setExternalProduct(
+            null
+          );
 
           const response =
             await fetch(
@@ -212,26 +340,26 @@ function BarcodeScanner() {
               )}`
             );
 
-          /*
-           * 로컬 npm run dev에서
-           * Vercel API가 실행되지 않는 경우도
-           * 확인할 수 있도록 text로 먼저 읽음
-           */
           const rawText =
             await response.text();
 
-          let data: ProductApiResponse;
+          let data:
+            ProductApiResponse;
 
           try {
             data =
-              JSON.parse(rawText);
+              JSON.parse(
+                rawText
+              );
           } catch {
             throw new Error(
               "상품 조회 API 응답을 읽지 못했습니다."
             );
           }
 
-          if (!response.ok) {
+          if (
+            !response.ok
+          ) {
             throw new Error(
               data.error ??
                 "상품 정보 조회에 실패했습니다."
@@ -252,94 +380,165 @@ function BarcodeScanner() {
             error
           );
         } finally {
-          setExternalLoading(false);
-          setExternalChecked(true);
+          setExternalLoading(
+            false
+          );
+
+          setExternalChecked(
+            true
+          );
         }
       };
 
     fetchExternalProduct();
-  }, [barcode, matchedProduct]);
+  }, [
+    barcode,
+    matchedProduct,
+  ]);
 
   /*
    * 새 스캔 시작
    */
-  const startScanning = () => {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
+  const startScanning =
+    () => {
+      controlsRef
+        .current
+        ?.stop();
 
-    setBarcode("");
-    setManualBarcode("");
+      controlsRef.current =
+        null;
 
-    setExternalProduct(null);
-    setExternalLoading(false);
-    setExternalChecked(false);
+      setBarcode("");
 
-    setManualProductName("");
-    setManualProductConfirmed(false);
+      setManualBarcode(
+        ""
+      );
 
-    setShowManualBarcodeInput(false);
+      setExternalProduct(
+        null
+      );
 
-    setIsScanning(true);
-  };
+      setExternalLoading(
+        false
+      );
+
+      setExternalChecked(
+        false
+      );
+
+      setManualProductName(
+        ""
+      );
+
+      setManualProductConfirmed(
+        false
+      );
+
+      setShowManualBarcodeInput(
+        false
+      );
+
+      setIsScanning(
+        true
+      );
+    };
 
   /*
    * JAN / EAN 직접 입력
    */
-  const findManualBarcode = () => {
-    const code =
-      manualBarcode.trim();
+  const findManualBarcode =
+    () => {
+      const code =
+        manualBarcode.trim();
 
-    if (!code) {
-      alert(
-        "JAN / EAN 코드를 입력해주세요."
+      if (!code) {
+        alert(
+          "JAN / EAN 코드를 입력해주세요."
+        );
+
+        return;
+      }
+
+      controlsRef
+        .current
+        ?.stop();
+
+      controlsRef.current =
+        null;
+
+      setIsScanning(
+        false
       );
-      return;
-    }
 
-    controlsRef.current?.stop();
-    controlsRef.current = null;
+      setShowManualBarcodeInput(
+        false
+      );
 
-    setIsScanning(false);
-    setShowManualBarcodeInput(false);
+      setExternalProduct(
+        null
+      );
 
-    setExternalProduct(null);
-    setExternalChecked(false);
+      setExternalLoading(
+        false
+      );
 
-    setManualProductName("");
-    setManualProductConfirmed(false);
+      setExternalChecked(
+        false
+      );
 
-    setBarcode(code);
-  };
+      setManualProductName(
+        ""
+      );
+
+      setManualProductConfirmed(
+        false
+      );
+
+      setBarcode(
+        code
+      );
+    };
 
   /*
-   * 외부 DB에서도 못 찾은 상품
    * 상품명 직접 입력
    */
-  const confirmManualProduct = () => {
-    if (!manualProductName.trim()) {
-      alert(
-        "상품명을 입력해주세요."
-      );
-      return;
-    }
+  const confirmManualProduct =
+    () => {
+      if (
+        !manualProductName
+          .trim()
+      ) {
+        alert(
+          "상품명을 입력해주세요."
+        );
 
-    setManualProductConfirmed(true);
-  };
+        return;
+      }
+
+      setManualProductConfirmed(
+        true
+      );
+    };
 
   return (
     <div>
-      <h2>상품 바코드 스캔</h2>
+      <h2>
+        상품 바코드 스캔
+      </h2>
 
       {/* 처음 화면 */}
 
-      {!isScanning && !barcode && (
-        <button
-          type="button"
-          onClick={startScanning}
-        >
-          📷 바코드 스캔
-        </button>
-      )}
+      {!isScanning &&
+        !barcode && (
+          <button
+            type="button"
+            onClick={
+              startScanning
+            }
+          >
+            📷 바코드 스캔
+          </button>
+        )}
 
       {/* 카메라 */}
 
@@ -357,12 +556,11 @@ function BarcodeScanner() {
             보여주세요.
           </p>
 
-          {/* 5초 이상 인식 실패 */}
-
           {showManualBarcodeInput && (
             <div
               style={{
-                marginTop: "18px",
+                marginTop:
+                  "18px",
               }}
             >
               <p>
@@ -370,29 +568,42 @@ function BarcodeScanner() {
                 인식되지 않나요?
               </p>
 
-              <label htmlFor="manual-barcode">
+              <label
+                htmlFor=
+                  "manual-barcode"
+              >
                 JAN / EAN 직접 입력
               </label>
 
               <input
-                id="manual-barcode"
+                id=
+                  "manual-barcode"
                 type="text"
-                inputMode="numeric"
-                value={manualBarcode}
-                onChange={(e) =>
+                inputMode=
+                  "numeric"
+                value={
+                  manualBarcode
+                }
+                onChange={(
+                  e
+                ) =>
                   setManualBarcode(
-                    e.target.value.replace(
-                      /\D/g,
-                      ""
-                    )
+                    e.target.value
+                      .replace(
+                        /\D/g,
+                        ""
+                      )
                   )
                 }
-                placeholder="예: 4901770056432"
+                placeholder=
+                  "예: 4901770056432"
               />
 
               <button
                 type="button"
-                onClick={findManualBarcode}
+                onClick={
+                  findManualBarcode
+                }
               >
                 🔎 상품 찾기
               </button>
@@ -411,85 +622,116 @@ function BarcodeScanner() {
             ✅ 바코드 확인 완료
           </h3>
 
-          <p>JAN / EAN 코드</p>
+          <p>
+            JAN / EAN 코드
+          </p>
 
           <strong>
             {barcode}
           </strong>
 
-          {/* =========================
-              1. products.ts 등록 상품
-             ========================= */}
+          {/* ==================
+              직접 등록 상품
+             ================== */}
 
           {matchedProduct ? (
             <div>
               <hr />
 
               <h3>
-                {matchedProduct.nameKo ??
-                  matchedProduct.nameJa ??
+                {matchedProduct
+                  .nameKo ??
+                  matchedProduct
+                    .nameJa ??
                   "상품명 없음"}
               </h3>
 
-              {matchedProduct.imageUrl && (
+              {matchedProduct
+                .imageUrl && (
                 <img
                   src={
-                    matchedProduct.imageUrl
+                    matchedProduct
+                      .imageUrl
                   }
                   alt={
-                    matchedProduct.nameKo ??
-                    matchedProduct.nameJa ??
+                    matchedProduct
+                      .nameKo ??
+                    matchedProduct
+                      .nameJa ??
                     "상품 이미지"
                   }
                   style={{
-                    width: "160px",
-                    height: "160px",
-                    objectFit: "contain",
-                    display: "block",
-                    margin: "16px auto",
-                    borderRadius: "12px",
+                    width:
+                      "160px",
+
+                    height:
+                      "160px",
+
+                    objectFit:
+                      "contain",
+
+                    display:
+                      "block",
+
+                    margin:
+                      "16px auto",
+
+                    borderRadius:
+                      "12px",
                   }}
                 />
               )}
 
-              {matchedProduct.nameJa && (
+              {matchedProduct
+                .nameJa && (
                 <p>
                   {
-                    matchedProduct.nameJa
+                    matchedProduct
+                      .nameJa
                   }
                 </p>
               )}
 
               <p>
                 브랜드:{" "}
+
                 <strong>
-                  {matchedProduct.brand ??
+                  {matchedProduct
+                    .brand ??
                     "정보 없음"}
                 </strong>
               </p>
 
-              {/* 면세 정보 */}
-
               <div
                 style={{
-                  marginTop: "14px",
-                  marginBottom: "18px",
-                  padding: "14px",
-                  borderRadius: "12px",
+                  marginTop:
+                    "14px",
+
+                  marginBottom:
+                    "18px",
+
+                  padding:
+                    "14px",
+
+                  borderRadius:
+                    "12px",
 
                   background:
-                    matchedProduct.taxFreeEligible
+                    matchedProduct
+                      .taxFreeEligible
                       ? "#ecfdf3"
                       : "#fff7ed",
 
                   border:
-                    matchedProduct.taxFreeEligible
+                    matchedProduct
+                      .taxFreeEligible
                       ? "1px solid #a7f3d0"
                       : "1px solid #fed7aa",
                 }}
               >
                 <strong>
-                  {matchedProduct.taxFreeEligible
+                  {matchedProduct
+                    .taxFreeEligible
                     ? "✅ 면세 가능 상품"
                     : "⚠️ 면세 제외 상품"}
                 </strong>
@@ -502,31 +744,38 @@ function BarcodeScanner() {
                 >
                   상품 분류:{" "}
                   {
-                    matchedProduct.taxCategory
+                    matchedProduct
+                      .taxCategory
                   }
                 </p>
 
                 <p
                   style={{
-                    margin: "4px 0",
+                    margin:
+                      "4px 0",
                   }}
                 >
                   소비세율:{" "}
+
                   <strong>
                     {Math.round(
-                      matchedProduct.taxRate *
+                      matchedProduct
+                        .taxRate *
                         100
                     )}
                     %
                   </strong>
                 </p>
 
-                {matchedProduct.isAlcohol && (
+                {matchedProduct
+                  .isAlcohol && (
                   <p
                     style={{
                       margin:
                         "8px 0 0",
-                      fontWeight: 700,
+
+                      fontWeight:
+                        700,
                     }}
                   >
                     🍶 주류 상품입니다.
@@ -537,43 +786,53 @@ function BarcodeScanner() {
                   style={{
                     margin:
                       "10px 0 0",
-                    fontSize: "12px",
-                    color: "#667085",
-                    lineHeight: 1.5,
+
+                    fontSize:
+                      "12px",
+
+                    color:
+                      "#667085",
+
+                    lineHeight:
+                      1.5,
                   }}
                 >
                   ※ 실제 면세 환급은
                   Tax-Free 매장 여부와
-                  구매 금액 등 환급 조건을
-                  충족해야 합니다.
+                  구매 금액 등 환급
+                  조건을 충족해야 합니다.
                 </p>
               </div>
 
               <PriceComparison
                 productName={
-                  matchedProduct.nameKo ??
-                  matchedProduct.nameJa ??
+                  matchedProduct
+                    .nameKo ??
+                  matchedProduct
+                    .nameJa ??
                   "상품명 없음"
                 }
                 searchKeyword={
-                  matchedProduct.searchKeyword
+                  matchedProduct
+                    .searchKeyword
                 }
                 jan={
-                  matchedProduct.jan
+                  matchedProduct
+                    .jan
                 }
                 taxRate={
-                  matchedProduct.taxRate
+                  matchedProduct
+                    .taxRate
                 }
                 taxFreeEligible={
-                  matchedProduct.taxFreeEligible
+                  matchedProduct
+                    .taxFreeEligible
                 }
               />
             </div>
           ) : externalLoading ? (
             /*
-             * =========================
-             * 2. 외부 DB 검색 중
-             * =========================
+             * 외부 상품 검색 중
              */
             <div>
               <hr />
@@ -585,19 +844,24 @@ function BarcodeScanner() {
             </div>
           ) : externalProduct ? (
             /*
-             * =========================
-             * 3. 외부 DB에서 찾음
-             * =========================
+             * 외부 상품 검색 성공
              */
             <div>
               <hr />
 
               <div
                 style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  background: "#eef4ff",
-                  marginBottom: "14px",
+                  padding:
+                    "10px 12px",
+
+                  borderRadius:
+                    "10px",
+
+                  background:
+                    "#eef4ff",
+
+                  marginBottom:
+                    "14px",
                 }}
               >
                 <strong>
@@ -607,87 +871,138 @@ function BarcodeScanner() {
               </div>
 
               <h3>
-                {externalProduct.name}
+                {
+                  externalProduct
+                    .name
+                }
               </h3>
 
-              {externalProduct.imageUrl && (
+              {externalProduct
+                .imageUrl && (
                 <img
                   src={
-                    externalProduct.imageUrl
+                    externalProduct
+                      .imageUrl
                   }
                   alt={
-                    externalProduct.name
+                    externalProduct
+                      .name
                   }
                   style={{
-                    width: "160px",
-                    height: "160px",
-                    objectFit: "contain",
-                    display: "block",
-                    margin: "16px auto",
-                    borderRadius: "12px",
+                    width:
+                      "160px",
+
+                    height:
+                      "160px",
+
+                    objectFit:
+                      "contain",
+
+                    display:
+                      "block",
+
+                    margin:
+                      "16px auto",
+
+                    borderRadius:
+                      "12px",
                   }}
                 />
               )}
 
               <p>
                 브랜드:{" "}
+
                 <strong>
-                  {externalProduct.brand ||
+                  {externalProduct
+                    .brand ||
                     "정보 없음"}
                 </strong>
               </p>
 
-              {externalProduct.category && (
+              {externalProduct
+                .category && (
                 <p>
                   카테고리:{" "}
                   {
-                    externalProduct.category
+                    externalProduct
+                      .category
                   }
                 </p>
               )}
 
-              {externalProduct.quantity && (
+              {externalProduct
+                .quantity && (
                 <p>
                   용량 / 중량:{" "}
                   {
-                    externalProduct.quantity
+                    externalProduct
+                      .quantity
                   }
                 </p>
               )}
 
               <p
                 style={{
-                  fontSize: "12px",
-                  color: "#667085",
+                  fontSize:
+                    "12px",
+
+                  color:
+                    "#667085",
                 }}
               >
                 상품정보 출처:{" "}
-                {externalProduct.source}
+                {
+                  externalProduct
+                    .source
+                }
               </p>
 
               {/*
-                외부 DB 상품은
-                taxRate / 면세 가능 여부를
-                우리가 아직 확정할 수 없으므로
-                PriceComparison에서 직접 선택
-              */}
+               * 지금 디버깅할 때
+               * 실제 한국 검색어 확인용
+               */}
+              <p
+                style={{
+                  fontSize:
+                    "12px",
+
+                  color:
+                    "#667085",
+
+                  wordBreak:
+                    "break-word",
+                }}
+              >
+                한국 가격 검색어:{" "}
+
+                <strong>
+                  {externalProduct
+                    .searchKeyword ??
+                    externalProduct
+                      .name}
+                </strong>
+              </p>
 
               <PriceComparison
                 productName={
-                  externalProduct.name
+                  externalProduct
+                    .name
                 }
                 searchKeyword={
-                  externalProduct.searchKeyword ??
-                  externalProduct.name
+                  externalProduct
+                    .searchKeyword ??
+                  externalProduct
+                    .name
                 }
-                jan={barcode}
+                jan={
+                  barcode
+                }
               />
             </div>
           ) : externalChecked ? (
             /*
-             * =========================
-             * 4. 외부 DB에서도 못 찾음
-             * =========================
+             * 외부 DB에서도 실패
              */
             <div>
               <hr />
@@ -710,31 +1025,42 @@ function BarcodeScanner() {
                     있어요.
                   </p>
 
-                  <label htmlFor="manual-product-name">
+                  <label
+                    htmlFor=
+                      "manual-product-name"
+                  >
                     상품명
                   </label>
 
                   <input
-                    id="manual-product-name"
-                    type="text"
+                    id=
+                      "manual-product-name"
+                    type=
+                      "text"
                     value={
                       manualProductName
                     }
-                    onChange={(e) =>
+                    onChange={(
+                      e
+                    ) =>
                       setManualProductName(
-                        e.target.value
+                        e.target
+                          .value
                       )
                     }
-                    placeholder="예: 모노그래프 치이카와 샤프"
+                    placeholder=
+                      "예: 로토 멘소래담 립밤"
                   />
 
                   <button
-                    type="button"
+                    type=
+                      "button"
                     onClick={
                       confirmManualProduct
                     }
                   >
-                    🔎 이 상품으로 가격 비교
+                    🔎 이 상품으로
+                    가격 비교
                   </button>
                 </>
               ) : (
@@ -752,11 +1078,14 @@ function BarcodeScanner() {
                     searchKeyword={
                       manualProductName
                     }
-                    jan={barcode}
+                    jan={
+                      barcode
+                    }
                   />
 
                   <button
-                    type="button"
+                    type=
+                      "button"
                     onClick={() =>
                       setManualProductConfirmed(
                         false
@@ -774,13 +1103,14 @@ function BarcodeScanner() {
             </div>
           ) : null}
 
-          {/* 다른 상품 */}
-
           <button
             type="button"
-            onClick={startScanning}
+            onClick={
+              startScanning
+            }
             style={{
-              marginTop: "20px",
+              marginTop:
+                "20px",
             }}
           >
             📷 다른 상품 스캔

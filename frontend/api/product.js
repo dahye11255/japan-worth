@@ -1,14 +1,22 @@
 /*
  * JapanWorth 상품 자동 조회 API
  *
- * 조회 순서
+ * 흐름
  *
- * 1. Google Shopping Japan (SerpApi)
- * 2. Open Facts
- * 3. UPCitemdb
+ * JAN
+ * ↓
+ * Google Shopping Japan
+ * → 상품명 / 사진 식별
  *
- * GET
- * /api/product?jan=4987241105052
+ * ↓
+ * 같은 JAN을 Google Korea 일반검색
+ * → 한국에서 실제로 쓰는 상품명 탐색
+ *
+ * ↓
+ * searchKeyword로 반환
+ *
+ * fallback:
+ * Open Facts → UPCitemdb
  */
 
 function cleanText(value) {
@@ -18,17 +26,7 @@ function cleanText(value) {
 }
 
 /*
- * 일본 쇼핑몰 제목 정리
- *
- * 예:
- *
- * 5個セット/【メール便】ロート製薬
- * メンソレータム 薬用リップスティックXD
- * 5個パック/美容・健康>衛生日用品
- *
- * ↓
- *
- * ロート製薬 メンソレータム 薬用リップスティックXD
+ * 일본 쇼핑몰 상품 제목 정리
  */
 function cleanProductTitle(title) {
   let text = cleanText(title);
@@ -37,94 +35,54 @@ function cleanProductTitle(title) {
     return "";
   }
 
-  /*
-   * 【メール便】
-   * 【送料無料】
-   * 【第3類医薬品】
-   * 같은 괄호 문구 제거
-   */
+  // 【メール便】, 【送料無料】 등 제거
   text = text.replace(
     /【[^】]*】/g,
     " "
   );
 
-  /*
-   * [送料無料] 형태 제거
-   */
+  // [送料無料] 형태 제거
   text = text.replace(
     /\[[^\]]*\]/g,
     " "
   );
 
-  /*
-   * 제목 맨 앞
-   * 5個セット/
-   * 3個セット
-   * 제거
-   */
+  // 제목 앞 5個セット / 3個パック 제거
   text = text.replace(
-    /^\s*\d+\s*個\s*(セット|パック)\s*[\/／]?\s*/gi,
+    /^\s*\d+\s*(個|本|袋|箱)\s*(セット|パック)\s*[\/／]?\s*/gi,
     ""
   );
 
-  /*
-   * 중간/뒤쪽
-   * 5個パック
-   * 3個セット
-   * 2本セット
-   */
+  // 제목 중간/뒤 5個パック 등 제거
   text = text.replace(
     /\d+\s*(個|本|袋|箱)\s*(セット|パック)/gi,
     " "
   );
 
-  /*
-   * まとめ買い
-   */
+  // まとめ買い 제거
   text = text.replace(
     /まとめ買い/gi,
     " "
   );
 
-  /*
-   * メール便
-   * 送料無料
-   * 送料込
-   */
+  // 배송 관련 문구 제거
   text = text.replace(
     /(メール便|送料無料|送料込|送料込み)/gi,
     " "
   );
 
-  /*
-   * 뒤에 붙은 쇼핑몰 카테고리
-   *
-   * /美容・健康>衛生日用品
-   */
+  // /美容・健康>衛生日用品 같은 카테고리 제거
   text = text.replace(
     /[\/／][^\/／]*>.*$/g,
     ""
   );
 
-  /*
-   * | 이후 광고/카테고리 문구 제거
-   */
+  // | 뒤 쇼핑몰 문구 제거
   text = text.replace(
     /\|.*$/g,
     ""
   );
 
-  /*
-   * 불필요한 슬래시 정리
-   */
-  text = text.replace(
-    /^[\/／]+|[\/／]+$/g,
-    " "
-  );
-
-  /*
-   * 공백 정리
-   */
   text = text
     .replace(/\s+/g, " ")
     .trim();
@@ -133,10 +91,9 @@ function cleanProductTitle(title) {
 }
 
 /*
- * 한국 판매가 검색용 키워드
+ * fallback 검색어 생성
  *
- * JAN은 넣지 않음.
- * 일본 쇼핑몰 광고 문구도 넣지 않음.
+ * JAN은 넣지 않는다.
  */
 function buildSearchKeyword(
   name,
@@ -152,10 +109,6 @@ function buildSearchKeyword(
     return "";
   }
 
-  /*
-   * 상품명에 브랜드가 이미 들어있으면
-   * 브랜드 중복 추가하지 않음
-   */
   if (
     cleanBrand &&
     !cleanName
@@ -171,9 +124,7 @@ function buildSearchKeyword(
 }
 
 /*
- * "Lip Balm"
- * "Shampoo"
- * 같이 너무 일반적인 상품명인지 확인
+ * 너무 일반적인 상품명인지 확인
  */
 function isGenericProductName(name) {
   const normalized =
@@ -199,7 +150,7 @@ function isGenericProductName(name) {
 }
 
 /*
- * Open Facts 카테고리 이상한 문구 제거
+ * Open Facts 이상한 카테고리 제거
  */
 function cleanCategory(category) {
   const value =
@@ -223,8 +174,278 @@ function cleanCategory(category) {
 }
 
 /*
- * Google Shopping 결과 중
- * 단품에 가까운 결과 우선 선택
+ * 한국 검색 결과 제목 정리
+ */
+function cleanKoreanTitle(title) {
+  let text =
+    cleanText(title);
+
+  if (!text) {
+    return "";
+  }
+
+  // [쿠팡], [공식몰] 등 제거
+  text = text.replace(
+    /\[[^\]]*\]/g,
+    " "
+  );
+
+  // 끝에 붙는 쇼핑몰 이름 제거
+  text = text.replace(
+    /\s*[-–—|:]\s*(쿠팡!?|네이버.*|G마켓.*|옥션.*|11번가.*|롯데ON.*|SSG.*)$/i,
+    ""
+  );
+
+  // "쿠팡!" 단독 꼬리 제거
+  text = text.replace(
+    /\s*[-–—|]\s*쿠팡!?\s*$/i,
+    ""
+  );
+
+  text = text
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text;
+}
+
+/*
+ * 한국 Google 검색 결과 점수
+ */
+function scoreKoreanResult(
+  result,
+  jan
+) {
+  const title =
+    cleanText(
+      result?.title
+    );
+
+  if (!title) {
+    return -9999;
+  }
+
+  /*
+   * 한글이 없는 결과는 제외
+   */
+  if (
+    !/[가-힣]/.test(title)
+  ) {
+    return -9999;
+  }
+
+  let score = 0;
+
+  /*
+   * 한글이 많이 포함될수록 가점
+   */
+  const koreanChars =
+    title.match(
+      /[가-힣]/g
+    ) ?? [];
+
+  score +=
+    koreanChars.length;
+
+  /*
+   * JAN이 제목에도 있으면
+   * 동일 상품일 가능성 높음
+   */
+  if (
+    title.includes(jan)
+  ) {
+    score += 20;
+  }
+
+  const link =
+    cleanText(
+      result?.link
+    ).toLowerCase();
+
+  /*
+   * 한국 쇼핑몰 결과 가점
+   */
+  if (
+    /coupang|naver|gmarket|auction|11st|lotte|ssg|shopping/.test(
+      link
+    )
+  ) {
+    score += 15;
+  }
+
+  /*
+   * 바코드 DB 사이트 같은 결과는 감점
+   */
+  if (
+    /(바코드|barcode|ean|jan 코드|상품정보조회)/i.test(
+      title
+    )
+  ) {
+    score -= 15;
+  }
+
+  if (
+    title.length > 120
+  ) {
+    score -= 10;
+  }
+
+  return score;
+}
+
+/*
+ * 같은 JAN으로 한국 웹 검색
+ *
+ * 일본어 상품명이 아니라
+ * 실제 한국 판매자가 사용하는
+ * 한국어 상품명을 얻기 위한 단계
+ */
+async function findKoreanSearchKeyword(
+  jan,
+  fallbackName
+) {
+  const fallback =
+    cleanProductTitle(
+      fallbackName
+    );
+
+  /*
+   * 이미 한글이면
+   * 추가 API 요청하지 않음
+   */
+  if (
+    /[가-힣]/.test(
+      fallback
+    )
+  ) {
+    return fallback;
+  }
+
+  const apiKey =
+    process.env
+      .SERPAPI_API_KEY;
+
+  if (!apiKey) {
+    return fallback;
+  }
+
+  try {
+    const params =
+      new URLSearchParams({
+        engine:
+          "google",
+
+        q: jan,
+
+        gl: "kr",
+
+        hl: "ko",
+
+        api_key:
+          apiKey,
+      });
+
+    const response =
+      await fetch(
+        `https://serpapi.com/search.json?${params.toString()}`
+      );
+
+    if (!response.ok) {
+      return fallback;
+    }
+
+    const data =
+      await response.json();
+
+    if (data.error) {
+      console.error(
+        "한국 Google 검색 오류:",
+        data.error
+      );
+
+      return fallback;
+    }
+
+    const results =
+      Array.isArray(
+        data.organic_results
+      )
+        ? data.organic_results
+        : [];
+
+    if (
+      results.length === 0
+    ) {
+      return fallback;
+    }
+
+    /*
+     * 한국어 결과 중
+     * 가장 점수가 높은 결과 선택
+     */
+    const ranked =
+      results
+        .map((result) => ({
+          result,
+          score:
+            scoreKoreanResult(
+              result,
+              jan
+            ),
+        }))
+        .filter(
+          (item) =>
+            item.score > -9999
+        )
+        .sort(
+          (a, b) =>
+            b.score -
+            a.score
+        );
+
+    if (
+      ranked.length === 0
+    ) {
+      return fallback;
+    }
+
+    const keyword =
+      cleanKoreanTitle(
+        ranked[0]
+          .result
+          .title
+      );
+
+    if (!keyword) {
+      return fallback;
+    }
+
+    /*
+     * 지나치게 긴 검색어는
+     * 한국 쇼핑 검색에 방해가 됨
+     */
+    if (
+      keyword.length > 100
+    ) {
+      return fallback;
+    }
+
+    return keyword;
+  } catch (error) {
+    console.error(
+      "한국 상품명 검색 오류:",
+      error
+    );
+
+    return fallback;
+  }
+}
+
+/*
+ * 일본 Google Shopping 검색 결과 점수
+ *
+ * 여러 개 세트보다는
+ * 단품 결과를 우선한다.
  */
 function scoreShoppingResult(
   result
@@ -240,19 +461,8 @@ function scoreShoppingResult(
 
   let score = 0;
 
-  /*
-   * 여러 개 묶음 상품은 뒤로
-   */
   if (
-    /\d+\s*個\s*(セット|パック)/i.test(
-      title
-    )
-  ) {
-    score += 50;
-  }
-
-  if (
-    /\d+\s*(本|袋|箱)\s*(セット|パック)/i.test(
+    /\d+\s*(個|本|袋|箱)\s*(セット|パック)/i.test(
       title
     )
   ) {
@@ -267,18 +477,12 @@ function scoreShoppingResult(
     score += 40;
   }
 
-  /*
-   * 쇼핑몰 카테고리까지 붙은 결과
-   */
   if (
     title.includes(">")
   ) {
     score += 10;
   }
 
-  /*
-   * 너무 긴 제목
-   */
   if (
     title.length > 80
   ) {
@@ -296,7 +500,8 @@ async function searchGoogleShoppingJapan(
   jan
 ) {
   const apiKey =
-    process.env.SERPAPI_API_KEY;
+    process.env
+      .SERPAPI_API_KEY;
 
   if (!apiKey) {
     console.error(
@@ -365,14 +570,17 @@ async function searchGoogleShoppingJapan(
     }
 
     /*
-     * 세트상품보다는
-     * 단품에 가까운 결과 우선
+     * 세트상품을 뒤로 보내기
      */
     const sortedResults =
       [...results].sort(
         (a, b) =>
-          scoreShoppingResult(a) -
-          scoreShoppingResult(b)
+          scoreShoppingResult(
+            a
+          ) -
+          scoreShoppingResult(
+            b
+          )
       );
 
     const item =
@@ -401,6 +609,16 @@ async function searchGoogleShoppingJapan(
       return null;
     }
 
+    /*
+     * 여기서 같은 JAN을
+     * 한국 Google에 검색
+     */
+    const koreanSearchKeyword =
+      await findKoreanSearchKeyword(
+        jan,
+        name
+      );
+
     const imageUrl =
       cleanText(
         item.thumbnail
@@ -413,7 +631,8 @@ async function searchGoogleShoppingJapan(
       jan,
 
       /*
-       * 화면에도 정제된 상품명 표시
+       * 화면에는 일본에서 찾은
+       * 정확한 상품명 표시
        */
       name,
 
@@ -445,13 +664,12 @@ async function searchGoogleShoppingJapan(
         ),
 
       /*
-       * 한국 검색에는
-       * 깨끗한 상품명만 사용
+       * 한국 가격검색에는
+       * 한국 Google에서 찾은
+       * 한국어 이름 사용
        */
       searchKeyword:
-        buildSearchKeyword(
-          name
-        ),
+        koreanSearchKeyword,
     };
   } catch (error) {
     console.error(
@@ -508,8 +726,7 @@ async function searchOpenFacts(
       );
 
     if (
-      response.status ===
-      404
+      response.status === 404
     ) {
       return null;
     }
@@ -561,10 +778,6 @@ async function searchOpenFacts(
       return null;
     }
 
-    /*
-     * Lip Balm처럼
-     * 일반적인 이름만 있는 경우 제외
-     */
     if (
       isGenericProductName(
         name
@@ -573,6 +786,18 @@ async function searchOpenFacts(
     ) {
       return null;
     }
+
+    const fallbackKeyword =
+      buildSearchKeyword(
+        name,
+        brand
+      );
+
+    const koreanSearchKeyword =
+      await findKoreanSearchKeyword(
+        jan,
+        fallbackKeyword
+      );
 
     return {
       jan,
@@ -611,10 +836,7 @@ async function searchOpenFacts(
       sourceUrl: "",
 
       searchKeyword:
-        buildSearchKeyword(
-          name,
-          brand
-        ),
+        koreanSearchKeyword,
     };
   } catch (error) {
     console.error(
@@ -651,8 +873,7 @@ async function searchUpcItemDb(
       );
 
     if (
-      response.status ===
-      429
+      response.status === 429
     ) {
       console.error(
         "UPCitemdb 조회 제한 초과"
@@ -662,8 +883,7 @@ async function searchUpcItemDb(
     }
 
     if (
-      response.status ===
-      404
+      response.status === 404
     ) {
       return null;
     }
@@ -696,14 +916,9 @@ async function searchUpcItemDb(
     const item =
       items[0];
 
-    const rawName =
-      cleanText(
-        item.title
-      );
-
     const name =
       cleanProductTitle(
-        rawName
+        item.title
       );
 
     const brand =
@@ -738,6 +953,18 @@ async function searchUpcItemDb(
         );
     }
 
+    const fallbackKeyword =
+      buildSearchKeyword(
+        name,
+        brand
+      );
+
+    const koreanSearchKeyword =
+      await findKoreanSearchKeyword(
+        jan,
+        fallbackKeyword
+      );
+
     return {
       jan,
 
@@ -768,10 +995,7 @@ async function searchUpcItemDb(
       sourceUrl: "",
 
       searchKeyword:
-        buildSearchKeyword(
-          name,
-          brand
-        ),
+        koreanSearchKeyword,
     };
   } catch (error) {
     console.error(
@@ -787,7 +1011,9 @@ export default async function handler(
   req,
   res
 ) {
-  if (req.method !== "GET") {
+  if (
+    req.method !== "GET"
+  ) {
     return res
       .status(405)
       .json({
@@ -825,10 +1051,8 @@ export default async function handler(
   }
 
   /*
-   * 개발 중에는 캐시 끄기.
-   *
-   * 안 그러면 같은 JAN 테스트 시
-   * 예전 검색어가 계속 보일 수 있음.
+   * 지금은 개발 중이므로
+   * 예전 검색어가 캐시에 남지 않게 한다.
    */
   res.setHeader(
     "Cache-Control",
@@ -838,7 +1062,7 @@ export default async function handler(
   try {
     /*
      * 1순위
-     * Google Shopping Japan
+     * 일본 Google Shopping
      */
     const googleProduct =
       await searchGoogleShoppingJapan(
