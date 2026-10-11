@@ -3,6 +3,8 @@ export type TaxRate = 0.1 | 0.08;
 export interface Product {
   jan: string;
 
+  imageUrl?: string;
+
   nameJa?: string;
   nameKo?: string;
 
@@ -92,7 +94,7 @@ export const products: Product[] = [
     weightGram: 20,
 
     category: "figure",
-
+    imageUrl: "/images/itadori-maximatic.png",
     taxRate: 0.1,
     taxFreeEligible: true,
     taxCategory: "완구 / 피규어",

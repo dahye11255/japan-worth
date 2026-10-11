@@ -368,6 +368,25 @@ function BarcodeScanner() {
                   matchedProduct.nameJa ??
                   "상품명 없음"}
               </h3>
+              
+              {matchedProduct.imageUrl && (
+                <img
+                  src={matchedProduct.imageUrl}
+                  alt={
+                    matchedProduct.nameKo ??
+                    matchedProduct.nameJa ??
+                    "상품 이미지"
+                  }
+                  style={{
+                    width: "160px",
+                    height: "160px",
+                    objectFit: "contain",
+                    display: "block",
+                    margin: "16px auto",
+                    borderRadius: "12px",
+                  }}
+                />
+              )}
 
               {matchedProduct.nameJa && (
                 <p>
